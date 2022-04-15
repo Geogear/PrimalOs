@@ -6,6 +6,42 @@
 #define MB KB*KB
 #define PAGE_SIZE 4*KB
 
+/* SYSTEM CONTROL COPROCESSOR REGISTERS */
+
+typedef struct{
+    uint32_t M:0; // [0] enables the mmu.
+    uint32_t A:1; // [1] enables strict alignment of data to detect alignment faults in data accesses.
+    uint32_t C:1; // [2] enables lvl 1 data cache.
+    uint32_t W:1; // [3] not implemented.
+    uint32_t SBO:3; // [6:4] should be 1
+    uint32_t B:1; // [7] determines endienness. b0 -> little endian, reset val.
+    uint32_t S:1; // [8] deprecated
+    uint32_t R:1; // [9] deprecated
+    uint32_t F:1; // [10] should be zero
+    uint32_t Z:1; // [11] enables branch prediction.
+    uint32_t I:1; // [12] enables lvl 1 instruction cache.
+    uint32_t V:1; // [13] determines location of exception vectors.
+    uint32_t RR:1; // [14] determines replacement strategy for cache.
+    uint32_t L4:1; // [15] determines if T bit is set for PC load instructions.
+    // b0 -> loads to PC set the T bit, reset val.
+    // b1- > loads to PC don't set the T bit.
+    uint32_t DT:1; // [16] deprecated
+    uint32_t SBZ_1:1; // [17]
+    uint32_t IT:1; // [18] deprecated
+    uint32_t SBZ_2:2; // [20:19]
+    uint32_t FI:1; // [21]
+    uint32_t U:1; // [22] enables unaligned data access operations. b0 -> support disabled, reset val.
+    uint32_t XP:1; // [23] enables extended page tables. b0 -> enabled, reset val.
+    uint32_t VE:1; // [24] enables vic interface to determine interrupt vectors.
+    uint32_t EE:1; // [25] determines how E bit on CPSR is set on an exception.
+    uint32_t SBZ_3:2; // [27-26]
+    uint32_t TR:1; // [28] controls tex remap functioanlity in the mmu.
+    // b0-> disabled, reset val.
+    uint32_t FA:1; // [29] controls access permission functionality in the mmu.
+    // b0 -> disabled, reset val.
+    uint32_t SBZ_4:2; // [31:30]
+}c1_control_r;
+
 /* Used to set access rights for the coprocessors CP to CP13. */
 typedef struct{
     // For any cp access:
@@ -48,10 +84,10 @@ typedef struct{
 
 typedef struct{
     uint32_t N:3; // [2:0] boundary size of ttb_r0
-    uint32_t SBZ1:1; // [3]
+    uint32_t SBZ_1:1; // [3]
     uint32_t PD0:1; // [4] b0-> enables pt walk for ttbr_0, reset val.
     uint32_t PD1:1; // [5] b0-> enables pt walk for ttbr_1, reset val.
-    uint32_t SBZ2:26; // [31:6]
+    uint32_t SBZ_2:26; // [31:6]
 }c2_ttb_control_r;
 
 /* Holds access permissions for a maximum of 16 domains. */
@@ -86,10 +122,13 @@ typedef struct{
 
 /* Software must perform a Data Synchronization Barrier
 operation before changes to the register. To ensure that
-all accesses are done to the correct context id. */
+all accesses are done to the correct context id. Use c7 cache operations reg for that.*/
 typedef struct{
     uint32_t asid:8; // [7:0] basically procid but used by the hw in the tlb entries.
     uint32_t procid:24; // [31:8]
 }c13_context_id_r;
+
+
+/* PROGRAM STATUS REGISTERS */
 
 #endif

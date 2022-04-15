@@ -1,14 +1,14 @@
 #ifndef KERNEL_H
 #define KERNEL_H
 
-#include "scp_registers.h"
+#include "registers.h"
 
 /* PAGE TABLE STRUCTURES */
 
 typedef struct{
     uint32_t access_type:2; // [1:0] must be b01, it means page table base address. b00 is a translation fault.
     uint32_t SBZ_1:1; // [2]
-    uint32_t NS:1; // [3] TODO what's this?
+    uint32_t NS:1; // [3] secure or non-secure world. For all operating modes except secure monitor, b1 and b0 ->  means secure.
     uint32_t SBZ_2:1; // [4]
     uint32_t domain:4; // [8:5] defines the user or manager domain.
     uint32_t P:1; // [9] usage of this not supported by the processor.
