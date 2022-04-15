@@ -1,10 +1,5 @@
 #ifndef KERNEL_H
 #define KERNEL_H
-#include <stdint.h>
-
-#define KB 1024
-#define MB KB*KB
-#define PAGE_SIZE 4*KB
 
 #include "scp_registers.h"
 
