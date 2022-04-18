@@ -2,6 +2,31 @@
 #include <stdint.h>
 #include "kernel.h"
 
+#define GETBIT(S,N) (S >> N) & 0x1u
+/* 
++ set operating mode to system in cpsr,
+first read and print it, not sure of the reset val
++ in c1 register set all to b01.
+*/
+
+typedef struct{
+    uint32_t hex0:4;
+    uint32_t hex1:4;
+    uint32_t hex2:4;
+    uint32_t hex3:4;
+    uint32_t hex4:4;
+    uint32_t hex5:4;
+    uint32_t hex6:4;
+    uint32_t hex7:4;
+}hexed;
+
+char uint_to_hex_char(uint32_t h)
+{
+    if(h < 10)
+        return (char)h + '0';
+    return (char)h + '7';
+}
+
 static inline void mmio_write(uint32_t reg, uint32_t data)
 {
     *(volatile uint32_t*)reg = data;
@@ -111,6 +136,36 @@ void uart_puts(const char* str)
         uart_putc((unsigned char)str[i]);
 }
 
+void log_uint(uint32_t num, char decision)
+{
+    int i = 0;
+    char c = 'X';
+    void* v = NULL;
+    hexed h = {};
+     switch(decision){
+         case 'b':
+            for(i = 31; i > -1; --i)
+            {
+                c = (GETBIT(num,i)) ? '1' : '0';
+                uart_putc(c);
+            }
+        break;
+        default:
+            v = ((void*)(&num));
+            h = *((hexed*)v);
+            uart_putc(uint_to_hex_char(h.hex7));
+            uart_putc(uint_to_hex_char(h.hex6));
+            uart_putc(uint_to_hex_char(h.hex5));
+            uart_putc(uint_to_hex_char(h.hex4));
+            uart_putc(uint_to_hex_char(h.hex3));
+            uart_putc(uint_to_hex_char(h.hex2));
+            uart_putc(uint_to_hex_char(h.hex1));
+            uart_putc(uint_to_hex_char(h.hex0));
+     }
+     uart_puts("\r\n");
+}
+
+
 void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
 {
     (void) r0;
@@ -119,6 +174,15 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
 
     uart_init();
     uart_puts("Welcome to Primal OS!\r\n");
+
+    uint32_t dst = 0;
+
+    __asm ("mrs %[dst], cpsr"
+          : [dst] "=r" (dst));
+
+
+    log_uint(dst, 'g');
+    log_uint(dst, 'b');
 
     while (1) {
         uart_putc(uart_getc());

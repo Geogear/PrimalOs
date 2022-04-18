@@ -9,7 +9,7 @@
 /* SYSTEM CONTROL COPROCESSOR REGISTERS */
 
 typedef struct{
-    uint32_t M:0; // [0] enables the mmu.
+    uint32_t M:1; // [0] enables the mmu.
     uint32_t A:1; // [1] enables strict alignment of data to detect alignment faults in data accesses.
     uint32_t C:1; // [2] enables lvl 1 data cache.
     uint32_t W:1; // [3] not implemented.
@@ -130,5 +130,24 @@ typedef struct{
 
 
 /* PROGRAM STATUS REGISTERS */
+
+typedef struct{
+    uint32_t M:5; // [4:0]
+    uint32_t T:1; // [5]
+    uint32_t F:1; // [6]
+    uint32_t I:1; // [7]
+    uint32_t A:1; // [8]
+    uint32_t E:1; // [9]
+    uint32_t DNM_1:6; // [15:10]
+    uint32_t GE:4; // [19:16]
+    uint32_t DNM_2:4; // [23:20]
+    uint32_t J:1; // [24]
+    uint32_t DNM_3:2; // [26:25]
+    uint32_t Q:1; // [27]
+    uint32_t V:1; // [28]
+    uint32_t C:1; // [29]
+    uint32_t Z:1; // [30]
+    uint32_t N:1; // [31]
+}cps_r;
 
 #endif
