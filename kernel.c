@@ -3,11 +3,6 @@
 #include "kernel.h"
 
 #define GETBIT(S,N) (S >> N) & 0x1u
-/* 
-+ set operating mode to system in cpsr,
-first read and print it, not sure of the reset val
-+ in c1 register set all to b01.
-*/
 
 typedef struct{
     uint32_t hex0:4;
@@ -40,7 +35,8 @@ static inline uint32_t mmio_read(uint32_t reg)
 // Loop <delay> times in a way that the compiler won't optimize away
 static inline void delay(int32_t count)
 {
-    asm volatile("__delay_%=: subs %[count], %[count], #1; bne __delay_%=\n"
+    asm volatile("__delay_%=: subs %[count], %[count], #1\n\t"
+                "bne __delay_%=\n"
             : "=r"(count): [count]"0"(count) : "cc");
 }
 
@@ -171,19 +167,49 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
     (void) r0;
     (void) r1;
     (void) atags;
+    void* v = NULL;
 
     uart_init();
     uart_puts("Welcome to Primal OS!\r\n");
 
-    uint32_t dst = 0;
+    uint32_t dst = 0, tmp = 0;
+    /* 
+        + in c1 register set all to b01.
+    */
+             
 
-    __asm ("mrs %[dst], cpsr"
-          : [dst] "=r" (dst));
 
 
-    log_uint(dst, 'g');
-    log_uint(dst, 'b');
 
+    /* Enable access for domain control access register. */
+    v = ((void*)(&dst));
+    c3_domain_access_control_r* dac_reg = (c3_domain_access_control_r*)v;
+    dst = 0xffffffff;
+
+    /* Write the changed value. */
+    __asm volatile( "mcr p15, 0, %[dst], c1, c0, 2"
+          :
+          : [dst] "r" (dst));
+
+    /* Write the changed value. */
+    __asm volatile( "mcr p15, 0, %[dst], c10, c0, 0"
+          :
+          : [dst] "r" (dst));
+
+    /* Read back to confirm the value is changed. */
+    __asm volatile("mrc p15, 0, %[tmp], c10, c0, 0"
+          : [tmp] "=r" (tmp));
+
+    log_uint(tmp, 'h');
+    log_uint(tmp, 'b');              
+
+    /* Read back to confirm the value is changed. */
+    __asm volatile("mrc p15, 0, %[tmp], c1, c0, 2"
+          : [tmp] "=r" (tmp));
+
+    log_uint(tmp, 'h');
+    log_uint(tmp, 'b');                  
+               
     while (1) {
         uart_putc(uart_getc());
         uart_putc('\n');
