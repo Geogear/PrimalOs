@@ -1,6 +1,6 @@
 #include <stddef.h>
 #include <stdint.h>
-#include "kernel.h"
+#include "../../lib/kernel/kernel.h"
 
 #define GETBIT(S,N) (S >> N) & 0x1u
 
@@ -176,10 +176,6 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
     /* 
         + in c1 register set all to b01.
     */
-             
-
-
-
 
     /* Enable access for domain control access register. */
     v = ((void*)(&dst));
