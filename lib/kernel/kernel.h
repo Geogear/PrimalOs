@@ -50,4 +50,18 @@ typedef struct{
     uint32_t small_page_address:20; // [31:12]
 }os_pt_entry;
 
+
+#define GETBIT(S,N) (S >> N) & 0x1u
+
+typedef struct{
+    uint32_t hex0:4;
+    uint32_t hex1:4;
+    uint32_t hex2:4;
+    uint32_t hex3:4;
+    uint32_t hex4:4;
+    uint32_t hex5:4;
+    uint32_t hex6:4;
+    uint32_t hex7:4;
+}hexed;
+
 #endif
