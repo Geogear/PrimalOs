@@ -1,7 +1,7 @@
 #ifndef KERNEL_H
 #define KERNEL_H
 
-#include "registers.h"
+#include <kernel/list.h>
 
 /* PAGE TABLE STRUCTURES */
 
@@ -41,13 +41,14 @@ typedef struct{
     uint32_t page_base_address:20; // [31:12]
 }small_page_physical_address;
 
-typedef struct{
+typedef struct os_pt_e{
     uint32_t allocated:1; // [0], if a process is using this page.
     uint32_t dirty:1; // [1], 1 if a write operation is performed for this page.
     uint32_t accessed:1; // [2], 1 if a read operation is performed for this page.
     uint32_t available:4; // [3]
     uint32_t pid:8; // [11:4] process using the page, 0 for the operating system.
     uint32_t small_page_index:17; // [31:12]
+    DEFINE_LINK(os_pt_e);
 }os_pt_entry;
 
 
