@@ -23,7 +23,7 @@ typedef struct{
 }second_lvl_address;
 
 typedef struct{
-    uint32_t access_type:2; // [1:0] must be b10, for 4k pages.
+    uint32_t access_type:2; // [1:0] must be b10, for 4kb pages.
     uint32_t CB:2; // [3:2] C(acheable) and B(ufferable) bits,
     // b00 -> strongly ordered, b01 -> Shared Device
     // b10 -> Outer and Inner Write-Through, No Allocate on Write

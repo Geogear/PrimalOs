@@ -39,17 +39,8 @@ void mem_init(atag_t* atags) {
     mem_size = 536870912; // TODO, can't calculate memsize form atags. get_mem_size(atags);
     num_pages = mem_size / PAGE_SIZE;
 
-    puts("mem: ");
-    log_uint(mem_size, 'h');
-
-    puts("num_p: ");
-    log_uint(num_pages, 'h');
-
     // Allocate space for all those pages' metadata.  Start this block just after the kernel image is finished
     page_array_len_bytes = sizeof(os_pt_entry) * num_pages;
-
-    puts("pt_len:");
-    log_uint(page_array_len_bytes, 'h');
 
     // Set start for os pt.
     all_pages = (os_pt_entry*)&__end;
@@ -78,9 +69,34 @@ void mem_init(atag_t* atags) {
     log_uint(all_kernel_pages, 'h');
 
     for (i = 0; i < all_kernel_pages; i++) {
-        all_pages[i].small_page_index = i;    // Identity map the kernel pages
+        // Identity map the kernel pages
+        all_pages[i].small_page_index = i;
         all_pages[i].allocated = 1;
     }
+
+    for(i = 0; i < first_lvl_num_entries; ++i)
+    {
+        // Means, points to a page table.
+        first_lvls[i].access_type = 1;
+        // Identity map for the kernel pages.
+        uint32_t tmp = (uint32_t)&second_lvls[i*second_lvl_num_entries];
+        // Only want the msb 22 bits.
+        first_lvls[i].coarse_pt_address = tmp >> 10;
+        // Leaving the domain as 0 for the kernel, meaning
+        // Domain 0 must be a manager domain.
+    }
+
+    for(i = 0; i < second_lvl_num_entries * first_lvl_num_entries; ++i)
+    {
+        // Means, points to a 4kb page
+        second_lvls[i].access_type = 2;
+        // Identity map the 1gb vm.
+        uint32_t tmp = (uint32_t)&all_pages[i];
+        // Only want the msb 20 bits.
+        second_lvls[i].small_page_address = tmp >> 12;
+        // TODO cb, stays as strongly ordered for now.
+    }
+
 
     // Map the rest of the pages as unallocated, and add them to the free list
     /*for(; i < num_pages; i++){
