@@ -38,4 +38,5 @@ $(OBJ_DIR)/%.o: $(COMMON_SRC)/%.c
 clean:
 	rm -rf $(OBJ_DIR)
 
-run: build
+run: 
+	qemu-system-arm -m 512 -M raspi0 -serial stdio -kernel primalos.img

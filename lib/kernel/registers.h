@@ -2,10 +2,6 @@
 #define SCPR_H
 #include <stdint.h>
 
-#define KB 1024
-#define MB KB*KB
-#define PAGE_SIZE 4*KB
-
 /* SYSTEM CONTROL COPROCESSOR REGISTERS */
 
 typedef struct{

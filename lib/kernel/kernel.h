@@ -37,7 +37,7 @@ typedef struct{
 }second_lvl_entry;
 
 typedef struct{
-    uint32_t page_index:12; // [11:0]
+    uint32_t sbz:12; // [11:0]
     uint32_t page_base_address:20; // [31:12]
 }small_page_physical_address;
 
@@ -45,9 +45,9 @@ typedef struct{
     uint32_t allocated:1; // [0], if a process is using this page.
     uint32_t dirty:1; // [1], 1 if a write operation is performed for this page.
     uint32_t accessed:1; // [2], 1 if a read operation is performed for this page.
-    uint32_t available:1; // [3]
+    uint32_t available:4; // [3]
     uint32_t pid:8; // [11:4] process using the page, 0 for the operating system.
-    uint32_t small_page_address:20; // [31:12]
+    uint32_t small_page_index:17; // [31:12]
 }os_pt_entry;
 
 
