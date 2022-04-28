@@ -27,6 +27,11 @@ IMPLEMENT_LIST(os_pt_e);
 
 // Compiler generated list type.
 os_pt_e_list_t free_pages;
+// Used for the heap only.
+os_pt_e_list_t allocated_pages;
+
+// Dynamic memory segment header.
+static heap_segment_t* heap_segment_list_head;
 
 // Kernel end with the page tables.
 static uint32_t kernel_end_addr;
@@ -67,6 +72,7 @@ void mem_init(atag_t* atags) {
     all_pages = (os_pt_entry*)&__end;
     bzero(all_pages, page_array_len_bytes);
     INITIALIZE_LIST(free_pages);
+    INITIALIZE_LIST(allocated_pages);
 
     // Set start for first lvl table.
     first_lvls = (first_lvl_entry*)&all_pages[num_pages];
@@ -76,11 +82,15 @@ void mem_init(atag_t* atags) {
     second_lvls = (second_lvl_entry*)&first_lvls[first_lvl_num_entries];
     bzero(second_lvls, first_lvl_num_entries*second_lvl_num_entries*sizeof(second_lvl_entry));
     
+    // Set kernel end with pts included.
     kernel_end_addr = (uint32_t)&second_lvls[first_lvl_num_entries*second_lvl_num_entries];
 
     // Iterate over all pages and mark them with the appropriate flags
     // Start with kernel pages
     kernel_pages = ((uint32_t)&__end) / PAGE_SIZE;
+
+    // Calc needed heap pages amount.
+    uint32_t heap_pages_num = get_needed_page_count(KERNEL_HEAP_SIZE);
 
     puts("kernel pages:");
     log_uint(kernel_pages, 'h');
@@ -89,15 +99,25 @@ void mem_init(atag_t* atags) {
     puts("all_kernel_pages:");
     log_uint(all_kernel_pages, 'h');
 
-    puts("size: ");
+    puts("os_pt_entry size: ");
     log_uint(sizeof(os_pt_entry), 'h');
 
+    puts("user heap: ");
+    log_uint(USER_HEAP_SIZE, 'h');
+
+    puts("heap header: ");
+    log_uint(sizeof(heap_segment_t), 'h');
+
+    puts("heap page count: ");
+    log_uint(heap_pages_num, 'h');
+
+    // Identity map the kernel pages.
     for (i = 0; i < all_kernel_pages; i++) {
-        // Identity map the kernel pages
         all_pages[i].small_page_index = i;
         all_pages[i].allocated = 1;
     }
 
+    // Init 1st lvl table.
     for(i = 0; i < first_lvl_num_entries; ++i)
     {
         // Means, points to a page table.
@@ -110,6 +130,7 @@ void mem_init(atag_t* atags) {
         // Domain not changed, so domain 0 must be a manager domain.
     }
 
+    // Init 2nd lvl table.
     for(i = 0; i < second_lvl_num_entries * first_lvl_num_entries; ++i)
     {
         // Means, points to a 4kb page
@@ -121,20 +142,32 @@ void mem_init(atag_t* atags) {
         // TODO cb, stays as strongly ordered for now.
     }
 
+    // Init heap.
+    heap_segment_list_head = (heap_segment_t *) kernel_end_addr;
+    bzero(heap_segment_list_head, sizeof(heap_segment_t));
+    heap_segment_list_head->segment_size = KERNEL_HEAP_SIZE; 
+    // Identity map, heap pages as well.
+    for(i = all_kernel_pages; i < all_kernel_pages + heap_pages_num; ++i)
+    {
+        all_pages[i].allocated = 1;
+        all_pages[i].small_page_index = i;
+        append_os_pt_e_list(&allocated_pages, &all_pages[i]);
+    }  
+
     // Map the rest of the pages as unallocated, and add them to the free list
-    for(i = all_kernel_pages; i < num_pages; ++i){
+    for(i = all_kernel_pages + heap_pages_num; i < num_pages; ++i){
         all_pages[i].allocated = 0;
         append_os_pt_e_list(&free_pages, &all_pages[i]);
     }
 
 }
 
-os_pt_entry* alloc_page(uint32_t pid)
+os_pt_entry* page_alloc(uint32_t pid)
 {
-    os_pt_entry* entry = NULL;
+    os_pt_entry* entry;
     // If no free pages left or pid is invalid.
     if(size_os_pt_e_list(&free_pages) == 0 || proc_t_num_entries <= pid)
-        return entry;
+        return NULL;
 
     // Get a page and set properties.
     entry = pop_os_pt_e_list(&free_pages);
@@ -149,7 +182,7 @@ os_pt_entry* alloc_page(uint32_t pid)
     return entry;
 }
 
-uint32_t free_page(uint32_t index)
+uint32_t page_free(uint32_t index)
 {
     if(num_pages <= index)
         return -1;
@@ -165,4 +198,69 @@ uint32_t free_page(uint32_t index)
     append_os_pt_e_list(&free_pages, &all_pages[index]);
 
     return 0;
+}
+
+void* mem_alloc(uint32_t bytes)
+{
+    heap_segment_t* cur, *best = NULL;
+    // Max signed int.
+    int diff, best_diff = 0x7fffffff;
+
+    // Add the header to alloc size and align it wşth 16 byte.
+    uint32_t header_size = sizeof(heap_segment_t);
+    bytes += header_size;
+    bytes += bytes % 16 ? 16 - (bytes % 16) : 0;
+
+    // Find the allocation that is closest in size to this request.
+    for (cur = heap_segment_list_head; cur != NULL; cur = cur->next) {
+        diff = cur->segment_size - bytes;
+        if (!cur->is_allocated && diff < best_diff && diff >= 0) {
+            best = cur;
+            best_diff = diff;
+        }
+    }
+
+    // If no free mem is available.
+    // TODO, update so that a new segment acquisition is tried,
+    // this would need pid when including users in the future.
+    if(best == NULL)
+        return NULL;
+
+    // If best diff is larger than the threshold, split it into two segments.
+    if (best_diff > (int)(2 * header_size)) {
+        bzero(((void*)(best)) + bytes, header_size);
+        cur = best->next;
+        best->next = ((void*)(best)) + bytes;
+        best->next->next = cur;
+        best->next->prev = best;
+        best->next->segment_size = best->segment_size - bytes;
+        best->segment_size = bytes;
+    }
+    best->is_allocated = 1;
+    return best + 1;
+}
+
+void mem_free(void* ptr) {
+    heap_segment_t* seg;
+
+    if (!ptr)
+        return;
+
+    seg = ptr - sizeof(heap_segment_t);
+    seg->is_allocated = 0;
+
+    // Merge with freed segements on the left.
+    while(seg->prev != NULL && !seg->prev->is_allocated) {
+        seg->prev->next = seg->next;
+        seg->next->prev = seg->prev;
+        seg->prev->segment_size += seg->segment_size;
+        seg = seg->prev;
+    }
+    // Merge with freed segments on the right.
+    while(seg->next != NULL && !seg->next->is_allocated) {
+        seg->next->next->prev = seg;
+        seg->next = seg->next->next;
+        seg->segment_size += seg->next->segment_size;
+        seg = seg->next;
+    }
 }
