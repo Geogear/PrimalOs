@@ -1,6 +1,6 @@
 #include <kernel/mem.h>
+#include <kernel/uart.h>
 #include <common/stdlib.h>
-#include <common/stdio.h>
 #include <stddef.h>
 
 // Defined in linker, end of the kernel image.
@@ -92,23 +92,23 @@ void mem_init(atag_t* atags) {
     // Calc needed heap pages amount.
     uint32_t heap_pages_num = get_needed_page_count(KERNEL_HEAP_SIZE);
 
-    puts("kernel pages:");
+    uart_puts("kernel pages:");
     log_uint(kernel_pages, 'h');
 
     all_kernel_pages = get_needed_page_count(kernel_end_addr);//kernel_end_addr / PAGE_SIZE;
-    puts("all_kernel_pages:");
+    uart_puts("all_kernel_pages:");
     log_uint(all_kernel_pages, 'h');
 
-    puts("os_pt_entry size: ");
+    uart_puts("os_pt_entry size: ");
     log_uint(sizeof(os_pt_entry), 'h');
 
-    puts("user heap: ");
+    uart_puts("user heap: ");
     log_uint(USER_HEAP_SIZE, 'h');
 
-    puts("heap header: ");
+    uart_puts("heap header: ");
     log_uint(sizeof(heap_segment_t), 'h');
 
-    puts("heap page count: ");
+    uart_puts("heap page count: ");
     log_uint(heap_pages_num, 'h');
 
     // Identity map the kernel pages.
@@ -135,7 +135,7 @@ void mem_init(atag_t* atags) {
     {
         // Means, points to a 4kb page
         second_lvls[i].access_type = 2;
-        // Identity map the 1gb vm.
+        // Identity map the page.
         uint32_t tmp = (uint32_t)&all_pages[i];
         // Only want the msb 20 bits.
         second_lvls[i].small_page_address = tmp >> 12;

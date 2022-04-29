@@ -1,6 +1,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <kernel/uart.h>
+#include <kernel/kernel.h>
 
 static inline void mmio_write(uint32_t reg, uint32_t data)
 {
@@ -75,4 +76,41 @@ void uart_puts(const char* str)
 {
     for (size_t i = 0; str[i] != '\0'; i ++)
         uart_putc((unsigned char)str[i]);
+}
+
+// Used in log_uint, not exposed to outside.
+char uint_to_hex_char(uint32_t h)
+{
+    if(h < 10)
+        return (char)h + '0';
+    return (char)h + '7';
+}
+
+void log_uint(uint32_t num, char type)
+{
+    int i = 0;
+    char c = 'X';
+    void* v = NULL;
+    hexed h = {};
+     switch(type){
+         case 'b':
+            for(i = 31; i > -1; --i)
+            {
+                c = (GETBIT(num,i)) ? '1' : '0';
+                uart_putc(c);
+            }
+        break;
+        default:
+            v = ((void*)(&num));
+            h = *((hexed*)v);
+            uart_putc(uint_to_hex_char(h.hex7));
+            uart_putc(uint_to_hex_char(h.hex6));
+            uart_putc(uint_to_hex_char(h.hex5));
+            uart_putc(uint_to_hex_char(h.hex4));
+            uart_putc(uint_to_hex_char(h.hex3));
+            uart_putc(uint_to_hex_char(h.hex2));
+            uart_putc(uint_to_hex_char(h.hex1));
+            uart_putc(uint_to_hex_char(h.hex0));
+     }
+     uart_puts("\r\n");
 }

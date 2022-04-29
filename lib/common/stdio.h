@@ -1,4 +1,4 @@
-#ifndef STDIO_H
+/*#ifndef STDIO_H
 #define STDIO_H
 
 char getc(void);
@@ -10,7 +10,4 @@ void puts(const char* s);
 // whichever comes first
 void gets(char* buf, int buflen);
 
-// Specific logging function, logs the num as hex or binary
-void log_uint(uint32_t num, char type);
-
-#endif
+#endif */

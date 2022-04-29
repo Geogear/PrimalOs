@@ -1,8 +1,8 @@
-#include <stddef.h>
-#include <stdint.h>
-
 #ifndef UART_H
 #define UART_H
+
+#include <stddef.h>
+#include <stdint.h>
 
 enum
 {
@@ -43,5 +43,8 @@ void uart_init();
 void uart_putc(unsigned char c);
 unsigned char uart_getc();
 void uart_puts(const char* str);
+
+// Specific logging function, logs the num as hex or binary
+void log_uint(uint32_t num, char type);
 
 #endif

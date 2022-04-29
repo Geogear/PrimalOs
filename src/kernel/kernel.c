@@ -1,16 +1,19 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <kernel/kernel.h>
+#include <kernel/atag.h>
 #include <kernel/mem.h>
 #include <kernel/uart.h>
 #include <kernel/registers.h>
-#include <common/stdio.h>
+#include <kernel/kerio.h>
+#include <kernel/gpu.h>
 
 void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
 {
     (void) r0;
     (void) r1;
     (void) atags;
+    char buf[256];
 
     uart_init();
     uart_puts("Welcome to Primal OS!\r\n");
@@ -52,10 +55,12 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
     log_uint(tmp, 'b');     */
 
     mem_init((atag_t *)atags);
-    uint32_t num_pages = get_num_p();    
+    gpu_init();
+    puts("Welcome to Primal OS!!\n");   
                
     while (1) {
-        uart_putc(uart_getc());
-        uart_putc('\n');
+        gets(buf, 256);
+        puts(buf);
+        putc('\n');
     }
 }
