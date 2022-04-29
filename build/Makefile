@@ -1,4 +1,5 @@
 CC = arm-none-eabi-gcc
+OBJCOPY = arm-none-eabi-objcopy
 CPU = arm1176jzf-s
 CFLAGS= -mcpu=$(CPU) -fpic -ffreestanding
 CSRCFLAGS= -Wall -Wextra
@@ -17,11 +18,11 @@ OBJECTS += $(patsubst $(COMMON_SRC)/%.c, $(OBJ_DIR)/%.o, $(COMMONSOURCES))
 OBJECTS += $(patsubst $(KER_SRC)/%.S, $(OBJ_DIR)/%.o, $(ASMSOURCES))
 HEADERS = $(wildcard $(KER_HEAD)/*.h)
 
-IMG_NAME=primalos.img
+IMG_NAME = primalos
 
 build: $(OBJECTS) $(HEADERS)
-	echo $(OBJECTS)
-	$(CC) -T linker.ld -o $(IMG_NAME) $(LFLAGS) $(OBJECTS)
+	$(CC) -T linker.ld -o $(IMG_NAME).elf $(LFLAGS) $(OBJECTS)
+	$(OBJCOPY) $(IMG_NAME).elf -O binary $(IMG_NAME).img
 
 $(OBJ_DIR)/%.o: $(KER_SRC)/%.c
 	mkdir -p $(@D)
@@ -39,4 +40,4 @@ clean:
 	rm -rf $(OBJ_DIR)
 
 run: 
-	qemu-system-arm -m 512 -M raspi0 -serial stdio -kernel primalos.img
+	qemu-system-arm -m 512 -M raspi0 -serial stdio -kernel primalos.elf
