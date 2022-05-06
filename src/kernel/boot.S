@@ -1,4 +1,4 @@
-// AArch32 mode
+.equ KERNEL_STACK_SIZE, 4096
  
 // To keep this in the first portion of the binary.
 .section ".text.boot"
@@ -14,8 +14,10 @@
 // r2 -> 0x00000100 - start of ATAGS
 // preserve these registers as argument for kernel_main
 _start:
-	// Setup the stack.
-	mov sp, #0x8000
+	// Setup the stack. Stack will be 32 KB above kernel image
+    ldr sp, =__end
+	mov r4, #(KERNEL_STACK_SIZE)
+	add sp, sp, r4
  
 	// Clear out bss.
 	ldr r4, =__bss_start
