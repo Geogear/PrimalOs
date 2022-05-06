@@ -47,4 +47,6 @@ void uart_puts(const char* str);
 // Specific logging function, logs the num as hex or binary
 void log_uint(uint32_t num, char type);
 
+void uartf(const char * fmt, ...);
+
 #endif

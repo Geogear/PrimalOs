@@ -2,6 +2,8 @@
 #include <stdint.h>
 #include <kernel/uart.h>
 #include <kernel/kernel.h>
+#include <stdarg.h>
+#include <common/stdlib.h>
 
 static inline void mmio_write(uint32_t reg, uint32_t data)
 {
@@ -113,4 +115,30 @@ void log_uint(uint32_t num, char type)
             uart_putc(uint_to_hex_char(h.hex0));
      }
      uart_puts("\r\n");
+}
+
+void uartf(const char * fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+
+    for (; *fmt != '\0'; fmt++) {
+        if (*fmt == '%') {
+            switch (*(++fmt)) {
+                case '%':
+                    uart_putc('%');
+                    break;
+                case 'd':
+                    uart_puts(itoa(va_arg(args, int), 10));
+                    break;
+                case 'x':
+                    uart_puts(itoa(va_arg(args, int), 16));
+                    break;
+                case 's':
+                    uart_puts(va_arg(args, char *));
+                    break;
+            }
+        } else uart_putc(*fmt);
+    }
+
+    va_end(args);
 }
