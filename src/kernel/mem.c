@@ -65,11 +65,11 @@ void mem_init(atag_t* atags) {
     mem_size = 536870912; // TODO, can't calculate memsize form atags. get_mem_size(atags);
     num_pages = mem_size / PAGE_SIZE;
 
-    // Allocate space for all those pages' metadata.  Start this block just after the kernel image is finished
+    // Allocate space for all those pages' metadata.  Start this block just after the stacks
     page_array_len_bytes = sizeof(os_pt_entry) * num_pages;
 
     // Set start for os pt.
-    all_pages = (os_pt_entry*)&__end;
+    all_pages = (os_pt_entry *)((uint32_t)&__end + KERNEL_STACK_SIZE +IRQ_STACK_SIZE);
     bzero(all_pages, page_array_len_bytes);
     INITIALIZE_LIST(free_pages);
     INITIALIZE_LIST(allocated_pages);
@@ -87,7 +87,7 @@ void mem_init(atag_t* atags) {
 
     // Iterate over all pages and mark them with the appropriate flags
     // Start with kernel pages
-    kernel_pages = ((uint32_t)&__end) / PAGE_SIZE;
+    kernel_pages = ((uint32_t)&__end + KERNEL_STACK_SIZE +IRQ_STACK_SIZE) / PAGE_SIZE;
 
     // Calc needed heap pages amount.
     uint32_t heap_pages_num = get_needed_page_count(KERNEL_HEAP_SIZE);
