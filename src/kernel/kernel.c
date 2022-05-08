@@ -9,6 +9,8 @@
 #include <kernel/gpu.h>
 #include <kernel/interrupts.h>
 #include <kernel/timer.h>
+#include <kernel/keyboard.h>
+#include <kernel/usb.h>
 
 void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
 {
@@ -18,7 +20,7 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
     int i = 0;
 
     uart_init();
-    uart_puts("Welcome to Primal OS!\r\n");
+    //uart_puts("Welcome to Primal OS!\r\n");
 
     /*uint32_t dst = 0, tmp = 0;
     void* v = NULL;
@@ -54,26 +56,32 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
 
     log_uint(tmp, 'h');
     log_uint(tmp, 'b');     */
-
-    //puts("Welcome to Primal OS!!\n");
-    mem_init((atag_t *)atags);
-    uart_puts("gpu init");
-    //gpu_init();
-    //printf("GPU INITIALIZED\n");
-    //printf("INITIALIZING INTERRUPTS...");
-    uart_puts("interrupts init");
+    
+    bcm2835_power_init();
+    mem_init((atag_t *)atags);  
+    //uart_puts("gpu init");
+    gpu_init();
+    puts("WELCOME TO PRIMAL OS!\n");  
+    printf("INITIALIZING INTERRUPTS...");
+    //uart_puts("interrupts init");
     interrupts_init();
-    //printf("DONE\n");
-    //printf("INITIALIZING TIMER...");
-    uart_puts("timer init");
+    printf("DONE\n");
+    printf("INITIALIZING TIMER...");
+    //uart_puts("timer init");
     timer_init();
-    //printf("DONE\n");    
+    printf("DONE\n");
+    printf("INITIALIZING KEYBOARD...");
+    usb_init();
+    keyboard_init();
+    printf("DONE\n");
+    dump_keyboard_info(0);    
 
-    uart_puts("timer set");  
+    printf("SETTING TIMER...");  
     timer_set(3000000);
-    uart_puts("loop");           
+    printf("DONE\n");          
     while (1) {
-        uartf("main %d\n", i++);//printf("main %d\n", i++);
+        printf("main %d\t", i++);//printf("main %d\n", i++);
+        dump_keyboard_info(1);
         udelay(1000000);
     }
 }

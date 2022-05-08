@@ -92,11 +92,11 @@ void mem_init(atag_t* atags) {
     // Calc needed heap pages amount.
     uint32_t heap_pages_num = get_needed_page_count(KERNEL_HEAP_SIZE);
 
-    uart_puts("kernel pages:");
-    log_uint(kernel_pages, 'h');
+    //uart_puts("kernel pages:");
+    //log_uint(kernel_pages, 'h');
 
     all_kernel_pages = get_needed_page_count(kernel_end_addr);//kernel_end_addr / PAGE_SIZE;
-    uart_puts("all_kernel_pages:");
+    /*uart_puts("all_kernel_pages:");
     log_uint(all_kernel_pages, 'h');
 
     uart_puts("os_pt_entry size: ");
@@ -109,7 +109,7 @@ void mem_init(atag_t* atags) {
     log_uint(sizeof(heap_segment_t), 'h');
 
     uart_puts("heap page count: ");
-    log_uint(heap_pages_num, 'h');
+    log_uint(heap_pages_num, 'h');*/
 
     // Identity map the kernel pages.
     for (i = 0; i < all_kernel_pages; i++) {

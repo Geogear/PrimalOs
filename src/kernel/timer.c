@@ -1,11 +1,12 @@
 #include <kernel/timer.h>
 #include <kernel/interrupts.h>
+#include <kernel/kerio.h>
 #include <kernel/uart.h>
 
 static timer_registers_t * timer_regs;
 
 static void timer_irq_handler(void) {
-    uartf("timeout :)\n");//printf("timeout :)\n");
+    printf("timeout :)\n");//printf("timeout :)\n");
     timer_set(3000000);
 }
 
