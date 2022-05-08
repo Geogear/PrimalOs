@@ -46,7 +46,7 @@ void gpu_putc(char c) {
     }
 
     fbinfo.chars_x++;
-    if (fbinfo.chars_x > fbinfo.chars_width) {
+    if (fbinfo.chars_x >= fbinfo.chars_width) {
         fbinfo.chars_x = 0;
         fbinfo.chars_y++;
     }

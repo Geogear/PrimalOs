@@ -23,8 +23,8 @@ fb_init_t fbinit __attribute__((aligned(16)));
 int framebuffer_init(void) {
 	mail_message_t msg;
 
-	fbinit.width = 640;
-	fbinit.height = 480;
+	fbinit.width = 1920;
+	fbinit.height = 1080;
 	fbinit.vwidth = fbinit.width;
 	fbinit.vheight = fbinit.height;
 	fbinit.depth = COLORDEPTH;
