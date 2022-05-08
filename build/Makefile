@@ -22,7 +22,7 @@ IMG_NAME = primalos
 
 build: $(OBJECTS) $(HEADERS)
 	$(CC) -T linker.ld -o $(IMG_NAME).elf $(LFLAGS) $(OBJECTS)
-	$(OBJCOPY) $(IMG_NAME).elf -O binary $(IMG_NAME).img
+	$(OBJCOPY) $(IMG_NAME).elf -O binary kernel.img
 
 $(OBJ_DIR)/%.o: $(KER_SRC)/%.c
 	mkdir -p $(@D)

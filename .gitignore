@@ -1,4 +1,4 @@
 .vscode
-primalos.img
-primalos.elf
+*.elf
+*.img
 objects
