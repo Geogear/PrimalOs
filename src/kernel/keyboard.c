@@ -24,6 +24,7 @@ static void keyboard_irq_handler(void){
     if(bottom8 == ARROW_MSB_8){
         if(bottom8 == ARROW_LEFT && cursor_pos > 0){
             // On the line start, go a line up.
+            //TODO go-up if LF
             if(fbinfo.chars_x == 0 && fbinfo.chars_y > 0){
                 fbinfo.chars_x = fbinfo.chars_width-1;
                 --fbinfo.chars_y;
@@ -71,6 +72,7 @@ static void keyboard_irq_handler(void){
                     break;
                 case BACKSPACE:
                     // On the line end, go a line down.
+                    //TODO go up if LF
                     if(fbinfo.chars_x == 0 && fbinfo.chars_y > 0){
                         fbinfo.chars_x = fbinfo.chars_width-1;
                         --fbinfo.chars_y;
