@@ -1,5 +1,5 @@
 #include <kernel/mem.h>
-#include <kernel/uart.h>
+#include <kernel/kerio.h>
 #include <common/stdlib.h>
 #include <stddef.h>
 
@@ -18,11 +18,9 @@ static first_lvl_entry* first_lvls;
 static const uint32_t second_lvl_num_entries = 256;
 static second_lvl_entry* second_lvls;
 
-// TODO Process table.
-static const uint32_t proc_t_num_entries = 256;
+static uint32_t proc_t_num_entries = 256;
 
-// Generate a list type from the struct.
-DEFINE_LIST(os_pt_e);
+// Implement the defined list type of the struct.
 IMPLEMENT_LIST(os_pt_e);
 
 // Compiler generated list type.
@@ -57,6 +55,10 @@ os_pt_entry* get_pt_entry(uint32_t index)
     return &all_pages[index];
 }
 
+heap_segment_t* get_heap_head(void){
+    return heap_segment_list_head;
+}
+
 void mem_init(atag_t* atags) {
     uint32_t mem_size,  page_array_len_bytes, kernel_pages, 
     all_kernel_pages, i;
@@ -69,7 +71,7 @@ void mem_init(atag_t* atags) {
     page_array_len_bytes = sizeof(os_pt_entry) * num_pages;
 
     // Set start for os pt.
-    all_pages = (os_pt_entry *)((uint32_t)&__end + KERNEL_STACK_SIZE +IRQ_STACK_SIZE);
+    all_pages = (os_pt_entry *)((uint32_t)&__end + KERNEL_STACK_SIZE);
     bzero(all_pages, page_array_len_bytes);
     INITIALIZE_LIST(free_pages);
     INITIALIZE_LIST(allocated_pages);
@@ -87,7 +89,7 @@ void mem_init(atag_t* atags) {
 
     // Iterate over all pages and mark them with the appropriate flags
     // Start with kernel pages
-    kernel_pages = ((uint32_t)&__end + KERNEL_STACK_SIZE +IRQ_STACK_SIZE) / PAGE_SIZE;
+    kernel_pages = ((uint32_t)&__end + KERNEL_STACK_SIZE) / PAGE_SIZE;
 
     // Calc needed heap pages amount.
     uint32_t heap_pages_num = get_needed_page_count(KERNEL_HEAP_SIZE);
@@ -159,10 +161,9 @@ void mem_init(atag_t* atags) {
         all_pages[i].allocated = 0;
         append_os_pt_e_list(&free_pages, &all_pages[i]);
     }
-
 }
 
-os_pt_entry* page_alloc(uint32_t pid)
+void* page_alloc(uint32_t pid)
 {
     os_pt_entry* entry;
     // If no free pages left or pid is invalid.
@@ -175,32 +176,33 @@ os_pt_entry* page_alloc(uint32_t pid)
     entry->pid = pid;
 
     // Zero out the page memory.
-    void* page_mem = (void*)(entry->small_page_index * PAGE_SIZE);
+    void* page_mem = (void*)((entry - all_pages) * PAGE_SIZE);
     bzero(page_mem, PAGE_SIZE);
 
-    // IF you have the netry, you have the page memory.
-    return entry;
+    // IF you have the entry, you have the page memory.
+    return page_mem;
 }
 
-uint32_t page_free(uint32_t index)
+void page_free(void* ptr, uint32_t index)
 {
-    if(num_pages <= index)
-        return -1;
+    os_pt_entry* page;
+
+    if(ptr != NULL){
+        // Get page metadata from the physical address
+        page = all_pages + ((uint32_t)ptr / PAGE_SIZE);
+    }else{
+        page = &all_pages[index];
+    }
     
     // Set all except the page index to zero.
-    all_pages[index].allocated =
-    all_pages[index].dirty =
-    all_pages[index].accessed =
-    all_pages[index].available =
-    all_pages[index].pid = 0;
+    page->allocated = page->dirty = page->accessed =
+    page->available = page->pid = 0;
 
     // Add it to the free list.
     append_os_pt_e_list(&free_pages, &all_pages[index]);
-
-    return 0;
 }
 
-void* mem_alloc(uint32_t bytes)
+void* mem_alloc(uint32_t bytes, heap_segment_t* segment_head)
 {
     heap_segment_t* cur, *best = NULL;
     // Max signed int.
@@ -212,7 +214,7 @@ void* mem_alloc(uint32_t bytes)
     bytes += bytes % 16 ? 16 - (bytes % 16) : 0;
 
     // Find the allocation that is closest in size to this request.
-    for (cur = heap_segment_list_head; cur != NULL; cur = cur->next) {
+    for (cur = segment_head; cur != NULL; cur = cur->next) {
         diff = cur->segment_size - bytes;
         if (!cur->is_allocated && diff < best_diff && diff >= 0) {
             best = cur;
@@ -222,7 +224,6 @@ void* mem_alloc(uint32_t bytes)
 
     // If no free mem is available.
     // TODO, update so that a new segment acquisition is tried,
-    // this would need pid when including users in the future.
     if(best == NULL)
         return NULL;
 

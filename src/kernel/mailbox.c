@@ -71,7 +71,7 @@ int send_messages(property_message_tag_t * tags) {
     // buffer size must be 16 byte aligned
     bufsize += (bufsize % 16) ? 16 - (bufsize % 16) : 0;
 
-    msg = mem_alloc(bufsize);
+    msg = mem_alloc(bufsize, get_heap_head());
     if (!msg)
         return -1;
 
