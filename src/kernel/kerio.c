@@ -1,4 +1,5 @@
 #include <kernel/uart.h>
+#include <kernel/kernel.h>
 #include <kernel/kerio.h>
 #include <kernel/gpu.h>
 #include <common/stdlib.h>
@@ -9,10 +10,16 @@ char getc(void) {
 }
 
 void putc(char c) {
+    if(ON_EMU){
+        return uart_putc(c);
+    }
     gpu_putc(c);
 }
 
 void puts(const char * str) {
+    if(ON_EMU){
+        return uart_puts(str);
+    }
     int i;
     for (i = 0; str[i] != '\0'; i ++)
         putc(str[i]);

@@ -11,6 +11,11 @@
 #include <kernel/timer.h>
 #include <kernel/keyboard.h>
 #include <kernel/usb.h>
+#include <kernel/process.h>
+#include <common/string.h>
+
+void test(void);
+uint32_t k = 0, t = 0;
 
 void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
 {
@@ -20,7 +25,6 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
     int i = 0;
 
     uart_init();
-    //uart_puts("Welcome to Primal OS!\r\n");
 
     /*uint32_t dst = 0, tmp = 0;
     void* v = NULL;
@@ -56,32 +60,50 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
 
     log_uint(tmp, 'h');
     log_uint(tmp, 'b');     */
-    
     bcm2835_power_init();
     mem_init((atag_t *)atags);  
-    //uart_puts("gpu init");
     gpu_init();
     puts("WELCOME TO PRIMAL OS!\n");  
     printf("INITIALIZING INTERRUPTS...");
-    //uart_puts("interrupts init");
     interrupts_init();
     printf("DONE\n");
     printf("INITIALIZING TIMER...");
-    //uart_puts("timer init");
     timer_init();
     printf("DONE\n");
-    printf("INITIALIZING KEYBOARD...");
-    usb_init();
-    keyboard_init();
+    printf("INITIALIZING SCHEDULER...");
+    process_init();
     printf("DONE\n");
-    dump_keyboard_info(0);    
+    //printf("INITIALIZING KEYBOARD...");
+    //usb_init();
+    //keyboard_init();
+    //printf("DONE\n");
+    //dump_keyboard_info(0);    
 
-    printf("SETTING TIMER...");  
-    timer_set(3000000);
-    printf("DONE\n");          
+    char* thread_1 = "THREAD_1";
+    char* thread_2 = "THREAD_2";
+
+    printf("THREAD CREATION...");
+    create_kernel_thread(test, thread_1, strlen(thread_1));
+    printf("DONE\n");
+    
+    //create_kernel_thread(test, thread_2, strlen(thread_2));         
     while (1) {
-        printf("main %d\t", i++);//printf("main %d\n", i++);
-        dump_keyboard_info(1);
+        printf("MAIN %d\t\t", i++);
+        //dump_keyboard_info(1);
+        udelay(1000000);
+        if(t == 6){
+            printf("THREAD CREATION...");
+            create_kernel_thread(test, thread_2, strlen(thread_2));
+            printf("DONE\n");
+        }
+    }
+}
+
+void test(void) {
+    int i = 0, j = ++k;
+    while (i < 10) {
+        printf("THREAD%d-%d\t", j, i++);
+        ++t;
         udelay(1000000);
     }
 }
