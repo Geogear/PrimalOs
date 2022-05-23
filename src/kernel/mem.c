@@ -64,7 +64,7 @@ void mem_init(atag_t* atags) {
     all_kernel_pages, i;
 
     // Get the total number of pages
-    mem_size = 536870912; // TODO, can't calculate memsize form atags. get_mem_size(atags);
+    mem_size = 0x20000000; //2^29B or 536870912B TODO, can't calculate memsize form atags. get_mem_size(atags);
     num_pages = mem_size / PAGE_SIZE;
 
     // Allocate space for all those pages' metadata.  Start this block just after the stacks
@@ -163,6 +163,7 @@ void mem_init(atag_t* atags) {
     }
 }
 
+//TODO it should take a os_pt_entry* and return the allocated entry in it
 void* page_alloc(uint32_t pid)
 {
     os_pt_entry* entry;

@@ -60,9 +60,10 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
 
     log_uint(tmp, 'h');
     log_uint(tmp, 'b');     */
-    bcm2835_power_init();
-    mem_init((atag_t *)atags);  
-    gpu_init();
+    //bcm2835_power_init();
+    mem_init((atag_t *)atags);
+    if(!ON_EMU)  
+        gpu_init();
     puts("WELCOME TO PRIMAL OS!\n");  
     printf("INITIALIZING INTERRUPTS...");
     interrupts_init();
@@ -74,7 +75,9 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
     process_init();
     printf("DONE\n");
     //printf("INITIALIZING KEYBOARD...");
-    //usb_init();
+    printf("INITIALIZING USB..");
+    usb_init();
+    printf("DONE\n");
     //keyboard_init();
     //printf("DONE\n");
     //dump_keyboard_info(0);    
@@ -82,9 +85,9 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
     char* thread_1 = "THREAD_1";
     char* thread_2 = "THREAD_2";
 
-    printf("THREAD CREATION...");
-    create_kernel_thread(test, thread_1, strlen(thread_1));
-    printf("DONE\n");
+    //printf("THREAD CREATION...");
+    //create_kernel_thread(test, thread_1, strlen(thread_1));
+    //printf("DONE\n");
     
     //create_kernel_thread(test, thread_2, strlen(thread_2));         
     while (1) {
@@ -92,9 +95,9 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
         //dump_keyboard_info(1);
         udelay(1000000);
         if(t == 6){
-            printf("THREAD CREATION...");
-            create_kernel_thread(test, thread_2, strlen(thread_2));
-            printf("DONE\n");
+            //printf("THREAD CREATION...");
+            //create_kernel_thread(test, thread_2, strlen(thread_2));
+            //printf("DONE\n");
         }
     }
 }
