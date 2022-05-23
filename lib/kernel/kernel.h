@@ -1,7 +1,7 @@
 #ifndef KERNEL_H
 #define KERNEL_H
 
-#define ON_EMU 0
+#define ON_EMU 1
 
 #include <kernel/list.h>
 
@@ -55,5 +55,14 @@ typedef struct{
     uint32_t hex6:4;
     uint32_t hex7:4;
 }hexed;
+
+/** Packed attribute:
+ * Annotate a structure with this to lay it out with no padding bytes.  */
+#define __packed __attribute__((packed))
+
+/** Static assertion:
+ * Assert that a predicate is true at compilation time.  This generates no code
+ * in the resulting binary.  */
+#define STATIC_ASSERT(condition) ((void)sizeof(char[1 - 2*!(condition)]))
 
 #endif
