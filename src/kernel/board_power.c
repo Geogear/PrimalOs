@@ -93,9 +93,11 @@ void bcm2835_setpower(enum board_power_feature feature, uint32_t on)
     if (on != is_on)
     {
         newmask = bcm2835_power_mask ^ bit;
-        //TODO this might nıt be successfull
-        bcm2835_set_power_mask(newmask);
-        bcm2835_power_mask = bcm2835_get_power_mask();
+        //Loop until mask is set
+        do{
+            bcm2835_set_power_mask(newmask);
+            bcm2835_power_mask = bcm2835_get_power_mask();
+        }while(bcm2835_power_mask != newmask);
     }
 }
 
