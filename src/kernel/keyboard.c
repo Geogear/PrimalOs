@@ -95,11 +95,6 @@ static void keyboard_irq_handler(void){
     }
 }
 
-static void keyboard_irq_clearer(void){
-    // No need to do anything for a keyboard.
-    printf("KEYBOARD CLEARER\n");
-}
-
 void keyboard_init(void){
     keyboard_control = (usb_mdio_control_t*) (USB_BASE + USB_MDIO_CONTL_OFFSET);
     keyboard_data = (usb_mdio_data_t*) (USB_BASE + USB_MDIO_DATA_OFFSET);
