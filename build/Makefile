@@ -40,4 +40,4 @@ clean:
 	rm -rf $(OBJ_DIR)
 
 run: 
-	qemu-system-arm -m 512 -M raspi0 -serial stdio -kernel primalos.elf
+	qemu-system-arm -m 512 -M raspi0 -usbdevice keyboard -serial stdio -kernel primalos.elf
