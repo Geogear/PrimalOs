@@ -103,7 +103,7 @@ void keyboard_init(void){
     keyboard_data->mdio_data = -1; dmb(); keyboard_control->freerun = 1; dmb(); keyboard_data->mdio_data = 0;
     dmb(); keyboard_vbus->vbus_irq_en = 1;
 
-    register_irq_handler(USB_CONTROLER, keyboard_irq_handler, keyboard_irq_clearer);
+    //register_irq_handler(USB_CONTROLER, keyboard_irq_handler, keyboard_irq_clearer);
 }
 
 void dump_keyboard_info(int o){

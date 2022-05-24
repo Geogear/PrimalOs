@@ -76,7 +76,7 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
     printf("DONE\n");
     //printf("INITIALIZING KEYBOARD...");
     printf("INITIALIZING USB..");
-    usb_init();
+    //usb_init();
     printf("DONE\n");
     //keyboard_init();
     //printf("DONE\n");
@@ -92,8 +92,10 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
     //create_kernel_thread(test, thread_2, strlen(thread_2));         
     while (1) {
         printf("MAIN %d\t\t", i++);
+        //print_descrp();
         //dump_keyboard_info(1);
-        udelay(1000000);
+        udelay(2000000);
+        //usb_poll();
         if(t == 6){
             //printf("THREAD CREATION...");
             //create_kernel_thread(test, thread_2, strlen(thread_2));

@@ -2,6 +2,7 @@
 #define USB_H
 
 #include <stdint.h>
+#include <kernel/kernel.h>
 #include <kernel/peripheral.h>
 
 #define USB_BASE (USB_OFFSET + PERIPHERAL_BASE)
@@ -9,6 +10,14 @@
 #define USB_MDIO_DATA_OFFSET 0x84
 #define USB_VBUS_OFFSET 0x88
 #define USB_GAHBCFG_OFFSET 0x8
+
+/* Constants defined by USB HID v1.11 specification  */
+#define HID_SUBCLASS_BOOT           1     /* Section 4.2   */
+#define HID_BOOT_PROTOCOL_KEYBOARD  1     /* Section 4.3   */
+#define HID_REQUEST_SET_PROTOCOL    0x0B  /* Section 7.2   */
+#define HID_BOOT_PROTOCOL           0     /* Section 7.2.5 */
+
+#define KEYBOARD_INTERFACE_NUMBER 1
 
 typedef struct{
     uint32_t mdi:16; //[15:0]
@@ -25,7 +34,6 @@ typedef struct
 {
     uint32_t mdio_data;
 }usb_mdio_data_t;
-
 
 typedef struct{
     uint32_t utmisrp_sessend:1; //[0]
@@ -47,6 +55,15 @@ typedef struct{
     //TODO
 }usb_ahb_confg_t;
 
+enum device_status{
+    POWERED = 0,
+    RESET = 1,
+    CONFIGURED = 2,
+    DEVICE_STATUS_COUNT = 3,
+};
+
 void usb_init(void);
+
+void usb_poll(void);
 
 #endif
