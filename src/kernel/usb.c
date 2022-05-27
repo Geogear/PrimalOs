@@ -30,7 +30,8 @@ static struct usb_device_descriptor descriptor = {};
 static struct usb_control_setup_data setup_data;
 static uint8_t key_press_data[8] = {};
 
-static enum device_status dev_stat = POWERED;
+static enum device_status dev_stat = DEVICE_STATUS_COUNT;
+static uint32_t dev_speed_low = 0;
 
 /**
  * Read the Host Port Control and Status register with the intention of
@@ -59,9 +60,12 @@ dwc_power_on_host_port(void)
 {
     union dwc_host_port_ctrlstatus hw_status;
 
-    hw_status = dwc_get_host_port_ctrlstatus();
-    hw_status.powered = 1;
-    regs->host_port_ctrlstatus = hw_status;
+    do{
+        hw_status = dwc_get_host_port_ctrlstatus();
+        hw_status.powered = 1;
+        regs->host_port_ctrlstatus = hw_status;
+        hw_status = dwc_get_host_port_ctrlstatus();
+    }while(!hw_status.powered);
 }
 
 /**
@@ -176,7 +180,13 @@ static void usb_interrupt_handler(void){
         case POWERED:
             udelay(120*MILI_SEC);
             dwc_reset_host_port();
-            printf("PORT:%x\t",regs->host_port_ctrlstatus);
+            printf("POW-PORT:%x\t",regs->host_port_ctrlstatus);
+            printf("SPED:%d\t",host_port_status.speed);
+            dev_speed_low = (host_port_status.speed == USB_SPEED_LOW);
+            dev_stat = RESET;
+            break;
+        case RESET:
+            printf("RESET\t");
             // Set address setup request
             setup_data.bmRequestType = USB_BMREQUESTTYPE_DIR_OUT | USB_REQUEST_TYPE_STANDARD
             | USB_REQUEST_RECIPIENT_DEVICE; // A length way to say zero, lel.
@@ -196,11 +206,13 @@ static void usb_interrupt_handler(void){
             regs->host_channels[0].interrupt_mask.val = 0x3ff;
 
             // If device is not high speed we have TODO with this.
-            split_control.val = 0;
-            split_control.split_enable = 1;
-            regs->host_channels[0].split_control.val = split_control.val;
+            split_control.val = regs->host_channels[0].split_control.val;
+            printf("SPLITVAL:%x\n",split_control.val);
+            //split_control.split_enable = 1;
+            //regs->host_channels[0].split_control.val = split_control.val;
             next_frame = (regs->host_frame_number & 0xffff) + 1;
-            char_reg.max_packet_size = 8; // Idk
+            char_reg.low_speed = dev_speed_low;
+            char_reg.max_packet_size = 8;
             char_reg.endpoint_type = USB_TRANSFER_TYPE_CONTROL;
             char_reg.device_address = 0;
             char_reg.endpoint_direction = setup_data.bmRequestType >> 7;
@@ -211,10 +223,10 @@ static void usb_interrupt_handler(void){
             char_reg.channel_enable = 1;
             regs->host_channels[0].characteristics.val = char_reg.val;
 
-            dev_stat = RESET;
+            //dev_stat = ADDRESSED;
             break;
-        case RESET:
-            printf("RESET\t");
+        case ADDRESSED:
+            printf("ADDRESSED\t");
             setup_data.bmRequestType = 0x21;
             setup_data.bRequest = 0x0b;
             setup_data.wValue = setup_data.wIndex = setup_data.wLength = 0;
@@ -237,11 +249,13 @@ static void usb_interrupt_handler(void){
             regs->host_channels[0].interrupt_mask.val = 0x3ff;
 
             // If device is not high speed we have TODO with this.
-            split_control.val = 0;
-            split_control.split_enable = 1;
-            regs->host_channels[0].split_control.val = split_control.val;
+            split_control.val = regs->host_channels[0].split_control.val;
+            printf("SPLITVAL:%x\n",split_control.val);
+            //split_control.split_enable = 1;
+            //regs->host_channels[0].split_control.val = split_control.val;
             next_frame = (regs->host_frame_number & 0xffff) + 1;
-            char_reg.max_packet_size = 8; // Idk
+            char_reg.low_speed = dev_speed_low;
+            char_reg.max_packet_size = 8;
             char_reg.endpoint_type = USB_TRANSFER_TYPE_CONTROL;
             char_reg.device_address = KEYBOARD_DEVICE_ADDRESS; //0;
             char_reg.endpoint_direction = setup_data.bmRequestType >> 7;
@@ -252,7 +266,7 @@ static void usb_interrupt_handler(void){
             char_reg.channel_enable = 1;
             regs->host_channels[0].characteristics.val = char_reg.val;
 
-            dev_stat = DEVICE_STATUS_COUNT;
+            //dev_stat = KEYPOLL;
             break;
         case CONFIGURED:
             printf("CONFIGURED\t");
@@ -273,6 +287,7 @@ static void usb_interrupt_handler(void){
             split_control.val = 0;
             regs->host_channels[0].split_control.val = split_control.val;
             next_frame = (regs->host_frame_number & 0xffff) + 1;
+            char_reg.low_speed = dev_speed_low;
             char_reg.max_packet_size = 8; // Idk
             char_reg.endpoint_type = USB_TRANSFER_TYPE_CONTROL;
             char_reg.device_address = 0;//KEYBOARD_DEVICE_ADDRESS;
@@ -286,12 +301,15 @@ static void usb_interrupt_handler(void){
 
             dev_stat = DEVICE_STATUS_COUNT;
             break;
-        default:
-            printf("DEFAULT\t");
+        case KEYPOLL:
+        printf("KEYPOLL\t");
             for(uint32_t i = 0; i < 8; ++i){
                 printf("%d:%x ",i,key_press_data[i]);
             }
-            printf("\t");
+            printf("\t");        
+            break;
+        default:
+            printf("DEFAULT\t");
             /*printf("bLength:%x\tbDescriptorType:%x\tbcdUSB:%x\tbNumConfig:%x\t",
             descriptor.bLength, descriptor.bDescriptorType, descriptor.bcdUSB,
             descriptor.bNumConfigurations);*/
@@ -314,12 +332,34 @@ static void usb_interrupt_clearer(void){
         regs->host_port_ctrlstatus = host_port_status;
     }
 
+    if(host_port_status.connected && dev_stat == DEVICE_STATUS_COUNT){
+        printf("CON\t");
+        dev_stat = POWERED;
+    }else if(!host_port_status.connected){
+        printf("DISCON\t");
+        dev_stat = DEVICE_STATUS_COUNT;
+    }
+
     if(regs->core_interrupts.host_channel_intr){
+        switch (dev_stat)
+        {
+            case RESET:
+                printf("SETADD\t");
+                dev_stat = ADDRESSED;
+                break;
+            case ADDRESSED:
+                printf("SETKPL\t");
+                dev_stat = KEYPOLL;
+                break;
+            default:
+                printf("SETNON\t");
+                break;
+        }
         host_channel_int = regs->host_channels[0].interrupts;
         /* Clear pending interrupts.  */
         regs->host_channels[0].interrupt_mask.val = 0;
         regs->host_channels[0].interrupts.val = 0xffffffff;
-        printf("CHN:%x\t", host_channel_int.val);
+        printf("CHNL:%x\t", host_channel_int.val);
     }
 }
 
@@ -366,7 +406,8 @@ void usb_poll(void){
     union dwc_host_channel_split_control split_control;
     void *data;
     uint32_t next_frame;
-    if (dev_stat == DEVICE_STATUS_COUNT){
+    if (dev_stat == KEYPOLL){
+        printf("INPOL\t");
         // In without data, set device address accordingly, endpoint is 1
         transfer_reg.packet_id = 0x2;//0x3;
         transfer_reg.packet_count = 1;
@@ -380,10 +421,12 @@ void usb_poll(void){
         regs->host_channels[0].interrupt_mask.val = 0x3ff;
 
         // If device is not high speed we have TODO with this.
-        split_control.val = 0;
-        split_control.split_enable = 1;
-        regs->host_channels[0].split_control.val = split_control.val;
+        split_control.val = regs->host_channels[0].split_control.val;
+        printf("SPLITVAL:%x\n",split_control.val);
+        //split_control.split_enable = 1;
+        //regs->host_channels[0].split_control.val = split_control.val;
         next_frame = (regs->host_frame_number & 0xffff) + 1;
+        char_reg.low_speed = dev_speed_low;
         char_reg.max_packet_size = 8; // Idk
         char_reg.endpoint_type = USB_TRANSFER_TYPE_INTERRUPT; //USB_TRANSFER_TYPE_CONTROL;
         char_reg.device_address = KEYBOARD_DEVICE_ADDRESS; //0;

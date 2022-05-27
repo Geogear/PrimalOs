@@ -58,8 +58,10 @@ typedef struct{
 enum device_status{
     POWERED = 0,
     RESET = 1,
-    CONFIGURED = 2,
-    DEVICE_STATUS_COUNT = 3,
+    ADDRESSED = 2,
+    CONFIGURED = 3,
+    KEYPOLL = 4,
+    DEVICE_STATUS_COUNT = 5,
 };
 
 void usb_init(void);
