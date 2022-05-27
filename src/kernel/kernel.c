@@ -74,9 +74,9 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
     printf("INITIALIZING SCHEDULER...");
     process_init();
     printf("DONE\n");
-    printf("INITIALIZING USB..");
-    usb_init();
-    printf("DONE\n");    
+    //printf("INITIALIZING USB..");
+    //usb_init();
+    //printf("DONE\n");    
     //printf("INITIALIZING KEYBOARD...");
     //keyboard_init();
     //printf("DONE\n");
@@ -95,7 +95,7 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
         //print_descrp();
         //dump_keyboard_info(1);
         udelay(2000000);
-        usb_poll();
+        //usb_poll();
         if(t == 6){
             //printf("THREAD CREATION...");
             //create_kernel_thread(test, thread_2, strlen(thread_2));
