@@ -12,6 +12,7 @@
 #include <kernel/keyboard.h>
 #include <kernel/usb.h>
 #include <kernel/process.h>
+#include <kernel/sd_host_regs.h>
 #include <common/string.h>
 
 void test(void);
@@ -22,7 +23,7 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
     (void) r0;
     (void) r1;
     (void) atags;
-    int i = 0;
+    uint32_t i = 0;
 
     uart_init();
 
@@ -80,7 +81,11 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
     //printf("INITIALIZING KEYBOARD...");
     //keyboard_init();
     //printf("DONE\n");
-    //dump_keyboard_info(0);    
+    //dump_keyboard_info(0);
+
+    printf("INITIALIZING SD HOST CONTROLLER...");
+    sd_init();
+    printf("DONE\n");
 
     char* thread_1 = "THREAD_1";
     char* thread_2 = "THREAD_2";
@@ -89,12 +94,17 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
     //create_kernel_thread(test, thread_1, strlen(thread_1));
     //printf("DONE\n");
     
-    //create_kernel_thread(test, thread_2, strlen(thread_2));         
+    //create_kernel_thread(test, thread_2, strlen(thread_2));
     while (1) {
-        printf("MAIN %d\t\t", i++);
+        if (i % 15 == 0){
+            sd_log_regs();
+            sd_read_cid_or_csd(10);
+        }        
+        printf("MAIN %d\t", i++);
         //print_descrp();
         //dump_keyboard_info(1);
         udelay(2000000);
+
         //usb_poll();
         if(t == 6){
             //printf("THREAD CREATION...");
