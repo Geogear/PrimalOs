@@ -19,6 +19,12 @@ void timer_init(void) {
     register_irq_handler(SYSTEM_TIMER_1, timer_irq_handler, timer_irq_clearer);
 }
 
+uint32_t timer_get(void){
+    dmb();
+    return timer_regs->counter_low;
+    dmb();
+}
+
 void timer_set(uint32_t usecs) {
         timer_regs->timer1 = timer_regs->counter_low + usecs;
 }

@@ -12,6 +12,8 @@ void timer_init(void);
 
 void timer_set(uint32_t usecs);
 
+uint32_t timer_get(void);
+
 void udelay(uint32_t usecs);
 
 typedef struct {
