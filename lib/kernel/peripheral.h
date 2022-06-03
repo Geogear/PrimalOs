@@ -26,4 +26,10 @@ extern void bcm2835_setpower(enum board_power_feature feature, uint32_t on);
 extern void bcm2835_power_init(void);
 extern void dmb(void);
 
+void mmio_write(uint32_t* mem, uint32_t data);
+uint32_t mmio_read(uint32_t* mem);
+
+void mmio_write_direct(uint32_t address, uint32_t data);
+uint32_t mmio_read_direct(uint32_t address);
+
 #endif
