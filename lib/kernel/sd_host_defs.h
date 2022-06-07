@@ -1,6 +1,9 @@
 #ifndef SD_HOST_DEFS_H
 #define SD_HOST_DEFS_H
 
+#include <stdint.h>
+#include <stddef.h>
+
 // SDMA buffer address
 #define SDMA_BUFFER     0x6000
 #define SDMA_BUFFER_PA  (SDMA_BUFFER + 0xC0000000)
@@ -8,8 +11,12 @@
 #define EMMC_DEBUG 1
 #define SD_4BIT_DATA 1
 
-// SD Clock Frequency (in Hz)
+// SD Clock Frequencies (in Hz)
 #define SD_CLOCK_ID 400000
+#define SD_CLOCK_NORMAL     25000000
+#define SD_CLOCK_HIGH       50000000
+#define SD_CLOCK_100        100000000
+#define SD_CLOCK_208        208000000
 
 #define SD_CMD_INDEX(a)		((a) << 24)
 #define SD_CMD_TYPE_NORMAL	0x0
@@ -49,6 +56,7 @@
 #define SD_DATA_WRITE       (SD_CMD_ISDATA | SD_CMD_DAT_DIR_HC)
 
 #define SD_CMD_RESERVED(a)  0xffffffff
+#define SD_GET_CLOCK_DIVIDER_FAIL	0xffffffff
 
 // The actual command indices
 #define GO_IDLE_STATE           0
