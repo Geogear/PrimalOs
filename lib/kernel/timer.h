@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <kernel/peripheral.h>
 #define MILI_SEC 1000
-#define SEC (MILISEC * MILISEC)
+#define SEC 1000000
 
 #define SYSTEM_TIMER_BASE (SYSTEM_TIMER_OFFSET + PERIPHERAL_BASE)
 

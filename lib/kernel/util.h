@@ -24,6 +24,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <common/stdlib.h>
 
 // Support for unaligned data access
 static inline void write_word(uint32_t val, uint8_t *buf, int offset)

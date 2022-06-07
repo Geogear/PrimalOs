@@ -4,7 +4,7 @@
 #include <kernel/atag.h>
 #include <kernel/mem.h>
 #include <kernel/uart.h>
-#include <kernel/registers.h>
+#include <kernel/scp_regs.h>
 #include <kernel/kerio.h>
 #include <kernel/gpu.h>
 #include <kernel/interrupts.h>
@@ -84,7 +84,7 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
     //dump_keyboard_info(0);
 
     printf("INITIALIZING SD HOST CONTROLLER...");
-    sd_init();
+    sd_card_init();
     printf("DONE\n");
 
     char* thread_1 = "THREAD_1";
