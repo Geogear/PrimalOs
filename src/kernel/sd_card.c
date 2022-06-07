@@ -5,6 +5,7 @@
 #include <kernel/kernel.h>
 #include <kernel/timer.h>
 #include <kernel/util.h>
+#include <common/stdlib.h>
 
 #define TIMEOUT_WAIT(stop_if_true, usecs) 		\
 do {							\
@@ -23,6 +24,9 @@ do {							\
 static volatile struct emmc_regs * const host_regs = (void*)SD_REGS_BASE;
 static union reg_interrupt interrupt_status = {};
 static struct emmc_block_dev device = {};
+
+static char *sd_versions[] = { "unknown", "1.0 and 1.01", "1.10",
+    "2.00", "3.0x", "4.xx" };
 
 static uint32_t sd_commands[] = {
     SD_CMD_INDEX(0),
@@ -161,12 +165,12 @@ static uint32_t sd_acommands[] = {
 // Reset the CMD line
 static int sd_reset_cmd(void){
     union reg_control1 control1;
-    control1 = emmc_regs->control1;
+    control1 = host_regs->control1;
     control1.srst_cmd = 1;
 
-    emmc_regs->control1 = control1;
-    TIMEOUT_WAIT(emmc_regs->control1.srst_cmd == 0, SEC);
-    control1 = emmc_regs->control1;
+    host_regs->control1 = control1;
+    TIMEOUT_WAIT(host_regs->control1.srst_cmd == 0, SEC);
+    control1 = host_regs->control1;
     if(!control1.srst_cmd){
         printf("EMMC: LINE DIDN'T RESET PROPERLY.\t");
         return -1;
@@ -177,12 +181,12 @@ static int sd_reset_cmd(void){
 // Reset the Data line
 static int sd_reset_dat(void){
     union reg_control1 control1;
-    control1 = emmc_regs->control1;
+    control1 = host_regs->control1;
     control1.srst_data = 1;
 
-    emmc_regs->control1 = control1;
-    TIMEOUT_WAIT(emmc_regs->control1.srst_data == 0, SEC);
-    control1 = emmc_regs->control1;
+    host_regs->control1 = control1;
+    TIMEOUT_WAIT(host_regs->control1.srst_data == 0, SEC);
+    control1 = host_regs->control1;
     if(!control1.srst_data){
         printf("EMMC: LINE DIDN'T RESET PROPERLY.\t");
         return -1;
@@ -190,10 +194,9 @@ static int sd_reset_dat(void){
     return 0;
 }
 
-
 static uint32_t sd_get_base_clock_hz()
 {
-    uint32_t base_clock = emmc_regs->not_def0[0];
+    uint32_t base_clock = host_regs->not_def0[0];
     base_clock = ((base_clock >> 8) & 0xff) * 1000000;
     return base_clock;
 }
@@ -251,12 +254,50 @@ static uint32_t sd_get_clock_divider(uint32_t base_clock, uint32_t target_rate)
     return ret;
 }
 
+static int sd_switch_clock_rate(uint32_t base_clock, uint32_t target_rate){
+    // Decide on an appropriate divider
+    uint32_t divider = sd_get_clock_divider(base_clock, target_rate);
+    if(divider == SD_GET_CLOCK_DIVIDER_FAIL)
+    {
+        printf("EMMC: couldn't get a valid divider for target rate %i Hz\n",
+               target_rate);
+        return -1;
+    }
+
+    // Wait for the command inhibit (CMD and DAT) bits to clear
+    while(host_regs->status.val & 0x3)
+        udelay(1000);
+
+    // Set the SD clock off
+    dmb();
+    uint32_t control1 = host_regs->control1.val;
+    control1 &= ~(1 << 2);
+    host_regs->control1.val = control1;
+    udelay(2000);
+
+    // Write the new divider
+	control1 &= ~0xffe0;		// Clear old setting + clock generator select
+    control1 |= divider;
+    host_regs->control1.val = control1;
+    udelay(2000);
+
+    // Enable the SD clock
+    control1 |= (1 << 2);
+    host_regs->control1.val = control1;
+    udelay(2000);
+
+#ifdef EMMC_DEBUG
+    printf("EMMC: successfully set clock rate to %i Hz\n", target_rate);
+#endif
+    return 0;    
+}
+
 static void sd_issue_command_int(uint32_t cmd_reg, uint32_t argument, uint32_t timeout){
     device.last_cmd_reg = cmd_reg;
     device.last_cmd_success = 0;
 
     // Wait until cmd line is free
-    while(emcc_regs->status.cmd_inhibit)
+    while(host_regs->status.cmd_inhibit)
         udelay(1000);
     // Is the command with busy?
     if((cmd_reg & SD_CMD_RSPNS_TYPE_MASK) == SD_CMD_RSPNS_TYPE_48B)
@@ -267,7 +308,7 @@ static void sd_issue_command_int(uint32_t cmd_reg, uint32_t argument, uint32_t t
         {
             // Not an abort command
             // Wait for the data line to be free
-            while(emmc_regs->status.dat_inhibit)
+            while(host_regs->status.dat_inhibit)
                 udelay(1000);
         }
     }
@@ -279,7 +320,7 @@ static void sd_issue_command_int(uint32_t cmd_reg, uint32_t argument, uint32_t t
         // Set system address register (ARGUMENT2 in RPi)
         // We need to define a 4 kiB aligned buffer to use here
         // Then convert its virtual address to a bus address
-        emmc_regs->arg2 = SDMA_BUFFER_PA;      
+        host_regs->arg2 = SDMA_BUFFER_PA;      
     }
 
     // Set block size and block count
@@ -295,11 +336,11 @@ static void sd_issue_command_int(uint32_t cmd_reg, uint32_t argument, uint32_t t
     union reg_blk_size_cnt blk_size_cnt;
     blk_size_cnt.blk_size = device.block_size;
     blk_size_cnt.blk_cnt = device.blocks_to_transfer;
-    emmc_regs->blk_size_cnt = blk_size_cnt;
+    host_regs->blk_size_cnt = blk_size_cnt;
 
     /// Set argument 1 reg
     dmb();
-    emmc_regs->arg1 = argument;
+    host_regs->arg1 = argument;
 
     if(is_sdma)
     {
@@ -308,16 +349,16 @@ static void sd_issue_command_int(uint32_t cmd_reg, uint32_t argument, uint32_t t
     }
 
     // Set command reg
-    emmc_regs->cmdtm.val = cmd_reg;
+    host_regs->cmdtm.val = cmd_reg;
     udelay(2000);
 
     // Wait for command complete interrupt
-    TIMEOUT_WAIT(emmc_regs->interrupt_flags.val & 0x8001, timeout);
+    TIMEOUT_WAIT(host_regs->interrupt_flags.val & 0x8001, timeout);
     dmb();
-    union reg_interrupt irpts = emmc_regs->interrupt_flags;
+    union reg_interrupt irpts = host_regs->interrupt_flags;
 
     // Clear command complete status
-    emmc_regs->interrupt_flags.val = irpts.val & 0xffff0001;
+    host_regs->interrupt_flags.val = irpts.val & 0xffff0001;
 
     // Test for errors
     if((irpts.val & 0xffff0001) != 0x1)
@@ -334,16 +375,16 @@ static void sd_issue_command_int(uint32_t cmd_reg, uint32_t argument, uint32_t t
     {
         case SD_CMD_RSPNS_TYPE_48:
         case SD_CMD_RSPNS_TYPE_48B:
-            device.last_r0 = emmc_regs->resp[0];
+            device.last_r0 = host_regs->resp[0];
             break;
         case SD_CMD_RSPNS_TYPE_136:
-            device.last_r0 = emmc_regs->resp[0];
+            device.last_r0 = host_regs->resp[0];
             dmb();
-            device.last_r1 = emmc_regs->resp[1];
+            device.last_r1 = host_regs->resp[1];
             dmb();
-            device.last_r2 = emmc_regs->resp[2];
+            device.last_r2 = host_regs->resp[2];
             dmb();
-            device.last_r3 = emmc_regs->resp[3];
+            device.last_r3 = host_regs->resp[3];
             dmb();
             break;
     }
@@ -369,9 +410,9 @@ static void sd_issue_command_int(uint32_t cmd_reg, uint32_t argument, uint32_t t
 			if(device.blocks_to_transfer > 1)
 				printf("SD: MULTI BLOCK TRANSFER, AWAITING BLOCK %i READY.\t", cur_block);            
         
-            TIMEOUT_WAIT(emmc_regs->interrupt_flags & (wr_irpt | 0x8000), timeout);
-            irpts = emmc_regs->interrupt_flags;
-            emmc_regs->interrupt_flags.val = 0xffff0000 | wr_irpt;
+            TIMEOUT_WAIT(host_regs->interrupt_flags.val & (wr_irpt | 0x8000), timeout);
+            irpts = host_regs->interrupt_flags;
+            host_regs->interrupt_flags.val = 0xffff0000 | wr_irpt;
 
             if((irpts.val & (0xffff0000 | wr_irpt)) != wr_irpt)
             {
@@ -388,11 +429,11 @@ static void sd_issue_command_int(uint32_t cmd_reg, uint32_t argument, uint32_t t
                 if(is_write)
                 {
                     uint32_t data = read_word((uint8_t *)cur_buf_addr, 0);
-                    emmc_regs->data = data;
+                    host_regs->data = data;
                 }
                 else
                 {
-                    uint32_t data = emmc_regs->data;
+                    uint32_t data = host_regs->data;
                     write_word(data, (uint8_t *)cur_buf_addr, 0);
                 }
                 cur_byte_no += 4;
@@ -407,13 +448,13 @@ static void sd_issue_command_int(uint32_t cmd_reg, uint32_t argument, uint32_t t
        (cmd_reg & SD_CMD_ISDATA)) && (is_sdma == 0))
     {
         // First check command inhibit (DAT) is not already 0
-        if(!emmc_regs->status.dat_inhibit)
-            emmc_regs->interrupt_flags.val = 0xffff0002;
+        if(!host_regs->status.dat_inhibit)
+            host_regs->interrupt_flags.val = 0xffff0002;
         else
         {
-            TIMEOUT_WAIT(emmc_regs->interrupt_flags & 0x8002, timeout);
-            irpts = emmc_regs->interrupt_flags;
-            emmc_regs->interrupt_flags.val = 0xffff0002;
+            TIMEOUT_WAIT(host_regs->interrupt_flags.val & 0x8002, timeout);
+            irpts = host_regs->interrupt_flags;
+            host_regs->interrupt_flags.val = 0xffff0002;
 
             // Handle the case where both data timeout and transfer complete
             //  are set - transfer complete overrides data timeout: HCSS 2.2.17
@@ -424,7 +465,7 @@ static void sd_issue_command_int(uint32_t cmd_reg, uint32_t argument, uint32_t t
                 device.last_interrupt = irpts.val;
                 return;
             }
-            emmc_regs->interrupt_flags.val = 0xffff0002;
+            host_regs->interrupt_flags.val = 0xffff0002;
         }
     }
     // TODO skipped sdma part for now.
@@ -536,7 +577,7 @@ static void sd_issue_command(uint32_t command, uint32_t argument, uint32_t timeo
 static void sd_handle_card_interrupt(void)
 {
     // Handle a card interrupt
-    union reg_status status = emmc_regs->status;
+    union reg_status status = host_regs->status;
     printf("SD: CARD INTERRUPT.\tSD: CONTROLLER STATUS:%08x\t",status.val);
 
     // Get the card status
@@ -568,7 +609,7 @@ static void sd_handle_card_interrupt(void)
 
 static void sd_handle_interrupts(void)
 {
-    uint32_t irpts = emmc_regs->interrupt_flags.val;
+    uint32_t irpts = host_regs->interrupt_flags.val;
     uint32_t reset_mask = 0;
 
     if(irpts & SD_COMMAND_COMPLETE)
@@ -654,7 +695,7 @@ static void sd_handle_interrupts(void)
 #endif
         reset_mask |= 0xffff0000;
     }
-    emmc_regs->interrupt_flags.val = reset_mask;
+    host_regs->interrupt_flags.val = reset_mask;
 }
 
 int sd_card_init(void){
@@ -664,7 +705,7 @@ int sd_card_init(void){
         bcm2835_setpower(POWER_SD, 1);
 
     // Read the version number.
-    uint32_t ver = emmc_regs->spi_int_spt;
+    uint32_t ver = host_regs->spi_int_spt;
     uint32_t vendor = ver >> 24;
     uint32_t sdversion = (ver >> 16) & 0xff;
 	uint32_t slot_status = ver & 0xff;
@@ -674,26 +715,26 @@ int sd_card_init(void){
 
     if(sdversion < 2){
         printf("EMMC: ONLY SDHCI VERSIONS >= 3.0 ARE SUPPPORTED.\t");
-        return;
+        return -1;
     }
 
     // Reset the controller.
-    union reg_control1 control1 = emmc_regs->control1;
+    union reg_control1 control1 = host_regs->control1;
     control1.srst_hc = 1;
     // Disable clock.
     control1.clk_en = 0;
     control1.clk_intlen = 0;
-    emmc_regs->control1 = control1;
+    host_regs->control1 = control1;
 
     udelay(SEC);
-    control1 = emmc_regs->control1;
+    control1 = host_regs->control1;
 	if((control1.val & (0x7 << 24)) != 0){
 		printf("EMMC: CONTROLLER DIDN'T RESET PROPERLY.\t");
-		return;
+		return -1;
 	}
 
 	// Clear control2.
-    emmc_regs->control2.val = 0;
+    host_regs->control2.val = 0;
 
     // Get base clock rate.
     uint32_t base_clock = sd_get_base_clock_hz();
@@ -704,7 +745,7 @@ int sd_card_init(void){
 	}
 
     // Enable clock.
-    control1 = emmc_regs->control1;
+    control1 = host_regs->control1;
     control1.clk_intlen = 1;
 
 	// Set to identification frequency (400 kHz)
@@ -712,29 +753,29 @@ int sd_card_init(void){
     control1.val |= f_id;
     control1.val |= (7 << 16);		// data timeout = TMCLK * 2^10
 
-    emmc_regs->control1 = control1;
+    host_regs->control1 = control1;
     udelay(SEC);
-    control1 = emmc_regs->control1;
+    control1 = host_regs->control1;
     if(!control1.clk_stable){
 		printf("EMMC: CONTROLLER'S CLOCK DID NOT STABILISE WITHIN 1 SECOND.\t");
-		return;        
+		return -1;        
     }
 
     udelay(2000);
     // Enable the SD clock.
-    control1 = emmc_regs->control1;
+    control1 = host_regs->control1;
     control1.clk_en = 1;
-    emmc_regs.control1 = control1;
-    udealy(2000);
+    host_regs->control1 = control1;
+    udelay(2000);
 
     // Mask off sending interrupts to the ARM
-    emmc_regs->interrupt_enable.val = 0;
+    host_regs->interrupt_enable.val = 0;
     // Reset interrupts
-    dmc();
-    emmc_regs->interrupt_flags = 0xffffffff;
+    dmb();
+    host_regs->interrupt_flags.val = 0xffffffff;
     // Have all interrupts sent to the INTERRUPT register,
     uint32_t irpt_mask = 0xffffffff; //&(~(1 << 8));
-    emmc_regs->interrupt_flags_mask.val = irpt_mask;
+    host_regs->interrupt_flags_mask.val = irpt_mask;
     udelay(2000);
 
     device.block_size = 512;
@@ -763,7 +804,7 @@ int sd_card_init(void){
     {
         if(sd_reset_cmd() == -1)
             return -1;
-        emmc_regs->interrupt_flags.val = SD_ERR_MASK_CMD_TIMEOUT;
+        host_regs->interrupt_flags.val = SD_ERR_MASK_CMD_TIMEOUT;
         v2_later = 0;
     }
     else if(FAIL(device))
@@ -794,7 +835,7 @@ int sd_card_init(void){
         {
             if(sd_reset_cmd() == -1)
                 return -1;
-            emmc_resg->interrupt_flgas.val = SD_ERR_MASK_CMD_TIMEOUT;
+            host_regs->interrupt_flags.val = SD_ERR_MASK_CMD_TIMEOUT;
         }
         else
         {
@@ -879,12 +920,12 @@ int sd_card_init(void){
 	    }
 
 	    // Disable SD clock
-	    control1 = emmc_regs->control1;
+	    control1 = host_regs->control1;
 	    control1.val &= ~(1 << 2);
-	    emmc_regs->control1 = control1;
+	    host_regs->control1 = control1;
 
 	    // Check DAT[3:0]
-	    union reg_status status = emmc_regs->status;
+	    union reg_status status = host_regs->status;
 	    uint32_t dat30 = (status.val >> 20) & 0xf;
 	    if(dat30 != 0)
 	    {
@@ -897,15 +938,15 @@ int sd_card_init(void){
 	    }
 
 	    // Set 1.8V signal enable to 1
-	    union reg_control0 control0 = emmc_regs->control0;
+	    union reg_control0 control0 = host_regs->control0;
 	    control0.val |= (1 << 8);
-	    emmc_regs->control0 = control0;
+	    host_regs->control0 = control0;
 
 	    // Wait 5 ms
 	    udelay(5000);
 
 	    // Check the 1.8V signal enable is set
-	    control0 = emmc_resg->control0;
+	    control0 = host_regs->control0;
 	    if(((control0.val >> 8) & 0x1) == 0)
 	    {
 #ifdef EMMC_DEBUG
@@ -917,15 +958,15 @@ int sd_card_init(void){
 	    }
 
 	    // Re-enable the SD clock
-	    control1 = emmc_regs->control1;
+	    control1 = host_regs->control1;
 	    control1.val |= (1 << 2);
-        emmc_regs->control1 = control1;
+        host_regs->control1 = control1;
 
 	    // Wait 1 ms
 	    udelay(10000);
 
 	    // Check DAT[3:0]
-        status = emmc_regs->status;
+        status = host_regs->status;
 	    dat30 = (status.val >> 20) & 0xf;
 	    if(dat30 != 0xf)
 	    {
@@ -1006,11 +1047,11 @@ int sd_card_init(void){
 	}
 
 	uint32_t cmd7_resp = device.last_r0;
-	status.val = (cmd7_resp >> 9) & 0xf;
+	status = (cmd7_resp >> 9) & 0xf;
 
-	if((status.val != 3) && (status.val != 4))
+	if((status != 3) && (status != 4))
 	{
-		printf("SD: invalid status (%i)\n", status.val);
+		printf("SD: invalid status (%i)\n", status);
 		return -1;
 	}
 
@@ -1025,10 +1066,10 @@ int sd_card_init(void){
 	    }
 	}
 	device.block_size = 512;
-	uint32_t controller_block_size = emmc_regs->blk_size_cnt.val;
+	uint32_t controller_block_size = host_regs->blk_size_cnt.val;
 	controller_block_size &= (~0xfff);
 	controller_block_size |= 0x200;
-    emmc_regs->blk_size_cnt.va = controller_block_size;;
+    host_regs->blk_size_cnt.val = controller_block_size;;
 
 	// Get the cards SCR register
 	device.buf = &device.scr.scr[0];
@@ -1074,9 +1115,9 @@ int sd_card_init(void){
 #ifdef SD_4BIT_DATA
 
         // Disable card interrupt in host
-        uint32_t old_irpt_mask = emmc_regs->interrupt_flags_mask.val;
+        uint32_t old_irpt_mask = host_regs->interrupt_flags_mask.val;
         uint32_t new_iprt_mask = old_irpt_mask & ~(1 << 8);
-        emmc_regs->interrupt_flags_mask.val = new_iprt_mask;
+        host_regs->interrupt_flags_mask.val = new_iprt_mask;
 
         // Send ACMD6 to change the card's bit mode
         sd_issue_command(SET_BUS_WIDTH, 0x2, 500000);
@@ -1085,23 +1126,23 @@ int sd_card_init(void){
         else
         {
             // Change bit mode for Host
-            uint32_t control0 = emmc_regs->control0.val;
+            uint32_t control0 = host_regs->control0.val;
             control0 |= 0x2;
-            emmc_regs->control0.val = control0;
+            host_regs->control0.val = control0;
 
             // Re-enable card interrupt in host
-            emmc_regs->interrupt_flags_mask.val = old_irpt_mask;
+            host_regs->interrupt_flags_mask.val = old_irpt_mask;
         }
 #endif
     }      
 
-	printf("SD: found a valid version %s SD card\n", sd_versions[device.sdr.sd_version]);
+	printf("SD: found a valid version %s SD card\n", sd_versions[device.scr.sd_version]);
 #ifdef EMMC_DEBUG
 	printf("SD: setup successful (status %i)\n", status);
 #endif
 
 	// Reset interrupt register
-	emmc_regs->interrupt_flags.val = 0xffffffff;    
+	host_regs->interrupt_flags.val = 0xffffffff;    
     return 0;
 }
 
@@ -1230,7 +1271,7 @@ static int sd_do_data_command(int is_write, uint8_t *buf, size_t buf_size, uint3
         else
         {
             printf("SD: error sending CMD%i, ", command);
-            printf("error = %08x.  ", edev->last_error);
+            printf("error = %08x.  ", device.last_error);
             retry_count++;
             if(retry_count < max_retries)
                 printf("Retrying...\n");
