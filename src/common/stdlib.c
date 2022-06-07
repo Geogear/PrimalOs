@@ -38,12 +38,54 @@ __inline__ divmod_t divmod(uint32_t dividend, uint32_t divisor) {
     return res;
 }
 
-void memcpy(void * dest, const void * src, int bytes) {
-    char * d = dest;
-    const char * s = src;
-    while (bytes--) {
-        *d++ = *s++;
+__inline__ uint32_t __aeabi_uidiv(uint32_t dividend, uint32_t divisor) {
+    // Use long division, but in binary.
+    uint32_t denom = divisor;
+    uint32_t current = 1;
+    uint32_t answer = 0;
+
+    if ( denom > dividend)
+        return 0;
+
+    if ( denom == dividend)
+        return 1;
+
+    while (denom <= dividend) {
+        denom <<= 1;
+        current <<= 1;
     }
+
+    denom >>= 1;
+    current >>= 1;
+
+    while (current!=0) {
+        if ( dividend >= denom) {
+            dividend -= denom;
+            answer |= current;
+        }
+        current >>= 1;
+        denom >>= 1;
+    }
+    return answer;
+}
+
+__inline__ divmod_t __aeabi_uidivmod(uint32_t dividend, uint32_t divisor) {
+    divmod_t res;
+    res.div = __aeabi_uidiv(dividend, divisor);
+    res.mod = dividend - res.div*divisor;
+    return res;
+}
+
+void* memcpy(void *dest, const void *src, size_t n)
+{
+	char *s = (char *)src;
+	char *d = (char *)dest;
+	while(n > 0)
+	{
+		*d++ = *s++;
+		n--;
+	}
+	return dest;
 }
 
 void bzero(void* dest, int bytes) {
