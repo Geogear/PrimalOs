@@ -15,6 +15,13 @@ enum usb_speed {
     USB_SPEED_LOW  = 2,
 };
 
+enum dwc_usb_pid {
+    DWC_USB_PID_DATA0 = 0,
+    DWC_USB_PID_DATA1 = 2,
+    DWC_USB_PID_DATA2 = 1,
+    DWC_USB_PID_SETUP = 3,
+};
+
 enum usb_transfer_type {
     USB_TRANSFER_TYPE_CONTROL     = 0,
     USB_TRANSFER_TYPE_ISOCHRONOUS = 1,
@@ -176,6 +183,6 @@ struct usb_endpoint_descriptor {
     uint8_t bInterval;
 } __packed;
 
-#define KEYBOARD_DEVICE_ADDRESS 12
+#define KEYBOARD_DEVICE_ADDRESS 1
 
 #endif

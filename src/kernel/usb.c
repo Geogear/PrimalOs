@@ -26,12 +26,25 @@ static union dwc_host_channel_interrupts host_channel_int;
 
 static volatile struct dwc_regs * const regs = (void*)USB_BASE;
 
-static struct usb_device_descriptor descriptor = {};
-static struct usb_control_setup_data setup_data;
+static struct usb_device_descriptor dev_desc = {};
+static struct usb_configuration_descriptor config_desc = {};
+static struct usb_control_setup_data setup_data = {};
+static uint8_t config_val = 0;
 static uint8_t key_press_data[8] = {};
 
 static enum device_status dev_stat = DEVICE_STATUS_COUNT;
-static uint32_t dev_speed_low = 0;
+static uint8_t dev_speed_low = 0;
+static uint8_t control_phase = 0;
+static uint8_t next_data_pid = DWC_USB_PID_DATA1;
+static uint8_t transfer_total_size = 0;
+static uint8_t transferred_size = 0;
+static uint8_t active_address = 0;
+static uint8_t transfer_active = 0;
+static void* buf = NULL;
+static void* dbuf = NULL;
+
+static uint8_t prev_transfer = 255;
+static uint8_t can_poll = 0;
 
 /**
  * Read the Host Port Control and Status register with the intention of
@@ -87,7 +100,6 @@ dwc_reset_host_port(void)
     regs->host_port_ctrlstatus = hw_status;
 }
 
-
 static inline uint32_t first_set_bit(uint32_t word){
     uint32_t i = 0;
     for(; i < 32; ++i){
@@ -120,199 +132,172 @@ static void dwc_setup_dma_mode(void){
     regs->ahb_configuration |= DWC_AHB_DMA_ENABLE | BCM_DWC_AHB_AXI_WAIT;          
 }
 
+static void control_transfer(void){
+    union dwc_host_channel_transfer transfer_reg = regs->host_channels[0].transfer;
+    dmb();
+    union dwc_host_channel_characteristics char_reg = regs->host_channels[0].characteristics;
+    void *data = NULL;
+
+    char_reg.val = transfer_reg.val = 0;
+
+    /* Default control endpoint.  The endpoint number, endpoint type, and
+        * packets per frame are pre-determined, while the maximum packet size
+        * can be found in the device descriptor.  */
+    char_reg.endpoint_number = 0;
+    char_reg.endpoint_type = USB_TRANSFER_TYPE_CONTROL;
+    char_reg.max_packet_size = 8;
+    char_reg.packets_per_frame = 1;
+    char_reg.odd_frame = ((regs->host_frame_number & 0xffff) + 1) & 1;
+    char_reg.device_address = active_address;
+    regs->host_channels[0].characteristics = char_reg;
+
+    switch (control_phase)
+    {
+        case 0:
+            //setup phase
+            char_reg.endpoint_direction = USB_DIRECTION_OUT;
+            data = &setup_data;
+            transfer_reg.size = sizeof(struct usb_control_setup_data);
+            transfer_reg.packet_id = DWC_USB_PID_SETUP;
+            control_phase = (setup_data.wLength == 0) ? 2 : 1;
+            next_data_pid = DWC_USB_PID_DATA1;
+            break;
+        case 1:
+            //data phase
+            char_reg.endpoint_direction = setup_data.bmRequestType >> 7;
+            /* We need to carefully take into account that we might be
+                 * re-starting a partially complete transfer.  */
+            data = buf + transferred_size;
+            transferred_size += char_reg.max_packet_size;
+            if(transferred_size >= transfer_total_size){
+                control_phase = 2;
+            }
+            transfer_reg.packet_id = next_data_pid;
+            next_data_pid = (next_data_pid == DWC_USB_PID_DATA1) ? DWC_USB_PID_DATA0 : DWC_USB_PID_DATA1;
+            break;        
+        default:
+            // status phase
+            /* The direction of the STATUS transaction is opposite the
+                * direction of the DATA transactions, or from device to host if
+                * there were no DATA transactions.  */
+            if((setup_data.bmRequestType >> 7) == USB_DIRECTION_OUT || setup_data.wLength == 0){
+                char_reg.endpoint_direction = USB_DIRECTION_IN;
+            }else{
+                char_reg.endpoint_direction = USB_DIRECTION_OUT;
+            }
+            /* The STATUS transaction has no data buffer, yet must use a
+                * DATA1 packet ID.  */
+            data = NULL;
+            transfer_reg.size = 0;
+            transfer_reg.packet_id = DWC_USB_PID_DATA1;
+            control_phase = 0;
+            break;
+    }
+    transfer_reg.packet_count = 1;
+    char_reg.channel_enable = 1;
+
+    /* Actually program the registers of the appropriate channel.  */
+    regs->host_channels[0].transfer = transfer_reg;
+    regs->host_channels[0].dma_address = data;
+    regs->host_channels[0].characteristics = char_reg;
+}
+
 static void usb_interrupt_handler(void){
     DISABLE_INTERRUPTS();
     printf("USB_HANDLER\t");
-    printf("CORE INTR:%x\tHOST CHNLS: %x\tPORT STAT:%x\tCHAN 0 INT:%x\t",
-    regs->core_interrupts.val, regs->host_channels_interrupt,
-    regs->host_port_ctrlstatus.val, regs->host_channels[0].interrupt_mask.val);
+    //printf("CORE INTR:%x\tHOST CHNLS: %x\tPORT STAT:%x\tCHAN 0 INT:%x\t",
+    //regs->core_interrupts.val, regs->host_channels_interrupt,
+    //regs->host_port_ctrlstatus.val, regs->host_channels[0].interrupt_mask.val);
 
-    union dwc_core_interrupts interrupts = regs->core_interrupts;
-    if(interrupts.sof_intr){
-        //printf("SOF INTR HOST FRAME NUM:%x\t", regs->host_frame_number);
-        if ((regs->host_frame_number & 0x7) != 6){
-            printf("SOF INTR IN\t");
-            union dwc_core_interrupts tmp;
-
-            // Disable SOF interrupt if no longer needed
-            //if (sofwait == 0)
-            //{
-                tmp = regs->core_interrupt_mask;
-                tmp.sof_intr = 0;
-                regs->core_interrupt_mask = tmp;
-            //}
-
-            /* Clear SOF interrupt */
-            tmp.val = 0;
-            tmp.sof_intr = 1;
-            regs->core_interrupts = tmp; 
-        }
-    }
-    if (interrupts.host_channel_intr){
-        printf("HOST CH INTR\t");
-        // One or more channels has an interrupt pending.
-        uint32_t chintr;
-        uint8_t chan;
-
-        chintr = regs->host_channels_interrupt;
-        do
+    uint8_t prev_phase = 0;
+    if(transfer_active){
+        switch (dev_stat)
         {
-            chan = first_set_bit(chintr);
-            if(chan){
-                printf("CHAN %d\tTRNSFR VAL: %x\tCHRCTERSTCS:%x\tSC: %x\tINTRPS: %x\t",
-                chan, regs->host_channels[chan].transfer.val,
-                regs->host_channels[chan].characteristics.val,
-                regs->host_channels[chan].split_control.val,
-                regs->host_channels[chan].interrupts.val);
-            }
-            chintr ^= (1 << chan);
-        } while (chintr != 0);        
-    }
+            case POWERED:
+                udelay(120*MILI_SEC);
+                dwc_reset_host_port();
+                printf("POW-PORT:%x\t",regs->host_port_ctrlstatus);
+                printf("SPED:%d\t",host_port_status.speed);
+                dev_speed_low = (host_port_status.speed == USB_SPEED_LOW) ? 1 : 0;
+                dev_stat = RESET;
+                break;
+            case RESET:
+                printf("RESET\t");
+                // Set address setup request
+                setup_data.bmRequestType = USB_BMREQUESTTYPE_DIR_OUT | USB_REQUEST_TYPE_STANDARD
+                | USB_REQUEST_RECIPIENT_DEVICE; // A length way to say zero, lel.
+                setup_data.bRequest = USB_DEVICE_REQUEST_SET_ADDRESS;
+                setup_data.wValue = KEYBOARD_DEVICE_ADDRESS;
+                setup_data.wIndex = setup_data.wLength = 0;
+                buf = &setup_data; dbuf = NULL; transfer_total_size = sizeof(setup_data); transferred_size = 0;
 
-    union dwc_host_channel_transfer transfer_reg;
-    union dwc_host_channel_characteristics char_reg;
-    union dwc_host_channel_split_control split_control;
-    void *data;
-    uint32_t next_frame;
+                // Enable channel 0
+                regs->host_channels_interrupt_mask = 1;
+                regs->host_channels[0].interrupt_mask.val = 0x3ff;
 
-    switch (dev_stat)
-    {
-        case POWERED:
-            udelay(120*MILI_SEC);
-            dwc_reset_host_port();
-            printf("POW-PORT:%x\t",regs->host_port_ctrlstatus);
-            printf("SPED:%d\t",host_port_status.speed);
-            dev_speed_low = (host_port_status.speed == USB_SPEED_LOW);
-            dev_stat = RESET;
-            break;
-        case RESET:
-            printf("RESET\t");
-            // Set address setup request
-            setup_data.bmRequestType = USB_BMREQUESTTYPE_DIR_OUT | USB_REQUEST_TYPE_STANDARD
-            | USB_REQUEST_RECIPIENT_DEVICE; // A length way to say zero, lel.
-            setup_data.bRequest = USB_DEVICE_REQUEST_SET_ADDRESS;
-            setup_data.wValue = KEYBOARD_DEVICE_ADDRESS; //0;
-            setup_data.wIndex = setup_data.wLength = 0;
+                prev_phase = control_phase;
+                control_transfer();
+                if(prev_phase == 2 && control_phase == 0){
+                    active_address = KEYBOARD_DEVICE_ADDRESS;
+                    dev_stat = ADDRESSED;
+                    transfer_active = 0;
+                    udelay(100*MILI_SEC); //Give the device recovery time.
+                }
+                break;
+            case ADDRESSED:
+                printf("ADDRESSED\t");
+                // Boot protocol control request setup stage.
+                /*setup_data.bmRequestType = 0x21;
+                setup_data.bRequest = 0x0b;
+                setup_data.wValue = 0; // 0 for boot protocol, 1 for report protocol
+                setup_data.wIndex = setup_data.wLength = 0;
+                buf = &setup_data; transfer_total_size = sizeof(setup_data); transferred_size = 0;*/
 
-            transfer_reg.packet_id = 0x3;
-            transfer_reg.packet_count = 1;
-            transfer_reg.size = sizeof(setup_data);
-            regs->host_channels[0].transfer.val = transfer_reg.val;
-            data = &setup_data;
-            regs->host_channels[0].dma_address = (uint32_t)data;
+                // Enable channel interrupts
+                regs->host_channels[0].interrupt_mask.val = 0x3ff;
 
-            // Enable channel 0
-            regs->host_channels_interrupt_mask = 1;
-            regs->host_channels[0].interrupt_mask.val = 0x3ff;
-
-            // If device is not high speed we have TODO with this.
-            split_control.val = regs->host_channels[0].split_control.val;
-            printf("SPLITVAL:%x\n",split_control.val);
-            //split_control.split_enable = 1;
-            //regs->host_channels[0].split_control.val = split_control.val;
-            next_frame = (regs->host_frame_number & 0xffff) + 1;
-            char_reg.low_speed = dev_speed_low;
-            char_reg.max_packet_size = 8;
-            char_reg.endpoint_type = USB_TRANSFER_TYPE_CONTROL;
-            char_reg.device_address = 0;
-            char_reg.endpoint_direction = setup_data.bmRequestType >> 7;
-            char_reg.odd_frame = next_frame & 1;
-            char_reg.packets_per_frame = 1;
-            char_reg.endpoint_number = 0;
-            // Starts the transaction.
-            char_reg.channel_enable = 1;
-            regs->host_channels[0].characteristics.val = char_reg.val;
-
-            //dev_stat = ADDRESSED;
-            break;
-        case ADDRESSED:
-            printf("ADDRESSED\t");
-            setup_data.bmRequestType = 0x21;
-            setup_data.bRequest = 0x0b;
-            setup_data.wValue = setup_data.wIndex = setup_data.wLength = 0;
-            // Get device descriptor setup request
-            /*setup_data.bmRequestType = USB_BMREQUESTTYPE_DIR_IN | USB_BMREQUESTTYPE_TYPE_STANDARD
-            | USB_BMREQUESTTYPE_RECIPIENT_DEVICE;
-            setup_data.bRequest = USB_DEVICE_REQUEST_GET_DESCRIPTOR;
-            setup_data.wValue = USB_DESCRIPTOR_TYPE_DEVICE << 8 | 0;
-            setup_data.wIndex = 0; setup_data.wLength = sizeof(descriptor);*/
-
-            transfer_reg.packet_id = 0x3;
-            transfer_reg.packet_count = 1;
-            transfer_reg.size = sizeof(setup_data);
-            regs->host_channels[0].transfer.val = transfer_reg.val;
-            data = &setup_data;
-            regs->host_channels[0].dma_address = (uint32_t)data;
-
-            // Enable channel 0
-            regs->host_channels_interrupt_mask = 1;
-            regs->host_channels[0].interrupt_mask.val = 0x3ff;
-
-            // If device is not high speed we have TODO with this.
-            split_control.val = regs->host_channels[0].split_control.val;
-            printf("SPLITVAL:%x\n",split_control.val);
-            //split_control.split_enable = 1;
-            //regs->host_channels[0].split_control.val = split_control.val;
-            next_frame = (regs->host_frame_number & 0xffff) + 1;
-            char_reg.low_speed = dev_speed_low;
-            char_reg.max_packet_size = 8;
-            char_reg.endpoint_type = USB_TRANSFER_TYPE_CONTROL;
-            char_reg.device_address = KEYBOARD_DEVICE_ADDRESS; //0;
-            char_reg.endpoint_direction = setup_data.bmRequestType >> 7;
-            char_reg.odd_frame = next_frame & 1;
-            char_reg.packets_per_frame = 1;
-            char_reg.endpoint_number = 0;
-            // Starts the transaction.
-            char_reg.channel_enable = 1;
-            regs->host_channels[0].characteristics.val = char_reg.val;
-
-            //dev_stat = KEYPOLL;
-            break;
-        case CONFIGURED:
-            printf("CONFIGURED\t");
-
-            // Get device descriptor data phase
-            transfer_reg.packet_id = 0x2;
-            transfer_reg.packet_count = 3;
-            transfer_reg.size = sizeof(descriptor);
-            regs->host_channels[0].transfer.val = transfer_reg.val;
-            data = &descriptor;
-            regs->host_channels[0].dma_address = (uint32_t)data;
-
-            // Enable channel 0
-            regs->host_channels_interrupt_mask = 1;
-            regs->host_channels[0].interrupt_mask.val = 0x3ff;
-
-            // If device is not high speed we have TODO with this.
-            split_control.val = 0;
-            regs->host_channels[0].split_control.val = split_control.val;
-            next_frame = (regs->host_frame_number & 0xffff) + 1;
-            char_reg.low_speed = dev_speed_low;
-            char_reg.max_packet_size = 8; // Idk
-            char_reg.endpoint_type = USB_TRANSFER_TYPE_CONTROL;
-            char_reg.device_address = 0;//KEYBOARD_DEVICE_ADDRESS;
-            char_reg.endpoint_direction = setup_data.bmRequestType >> 7;
-            char_reg.odd_frame = next_frame & 1;
-            char_reg.packets_per_frame = 1;
-            char_reg.endpoint_number = 0;
-            // Starts the transaction.
-            char_reg.channel_enable = 1;
-            regs->host_channels[0].characteristics.val = char_reg.val;
-
-            dev_stat = DEVICE_STATUS_COUNT;
-            break;
-        case KEYPOLL:
-        printf("KEYPOLL\t");
-            for(uint32_t i = 0; i < 8; ++i){
-                printf("%d:%x ",i,key_press_data[i]);
-            }
-            printf("\t");        
-            break;
-        default:
-            printf("DEFAULT\t");
-            /*printf("bLength:%x\tbDescriptorType:%x\tbcdUSB:%x\tbNumConfig:%x\t",
-            descriptor.bLength, descriptor.bDescriptorType, descriptor.bcdUSB,
-            descriptor.bNumConfigurations);*/
+                prev_phase = control_phase;
+                control_transfer();
+                if(prev_phase == 2 && control_phase == 0){
+                    transfer_active = 0;
+                }
+                if(prev_phase == 0 && control_phase == 1){
+                    buf = dbuf;
+                    transfer_total_size = setup_data.wLength;
+                    transferred_size = 0;
+                    can_poll = 1;
+                }
+                break;
+            default:
+                printf("DEFAULT\t");
+        }
+    }else if(transfer_active == 0 && prev_transfer != 255){
+        switch (prev_transfer)
+        {
+            case 0: // get_status
+                printf("PREV_TRANSFER: %d", prev_transfer);
+                break;
+            case 1: // get config
+                printf("PREV_TRANSFER: %d", prev_transfer);
+                break;
+            case 2: // set config
+                printf("PREV_TRANSFER: %d", prev_transfer);
+                break;
+            case 3: // get report, hdi keyboard specific
+                printf("PREV_TRANSFER: %d", prev_transfer);
+                break;
+            case 4: // get config desc
+                printf("CONFIG DESC LENGLTH: %x, DESCRPTR_TYPE: %x, TOTAL_LEN: %x, NUM_INTRFCS: %x, CONFIG_VAL: %x,"
+                " ICONFIG: %x, ATTRBTS: %x, MAX_POWER: %x\t",
+                config_desc.bLength, config_desc.bDescriptorType, config_desc.wTotalLength, config_desc.bNumInterfaces,
+                config_desc.bConfigurationValue, config_desc.iConfiguration, config_desc.bmAttributes, config_desc.bMaxPower);
+                config_val = config_desc.bConfigurationValue;
+                break;
+            default:
+                printf("ERR: UNEXPECTED VAL %d PREV_TRANSFER.\t", prev_transfer);
+                break;
+        }
+        prev_transfer = 255;
     }
 
     ENABLE_INTERRUPTS();
@@ -332,34 +317,19 @@ static void usb_interrupt_clearer(void){
         regs->host_port_ctrlstatus = host_port_status;
     }
 
+    // Handle connect/disconnect
     if(host_port_status.connected && dev_stat == DEVICE_STATUS_COUNT){
-        printf("CON\t");
         dev_stat = POWERED;
     }else if(!host_port_status.connected){
-        printf("DISCON\t");
         dev_stat = DEVICE_STATUS_COUNT;
     }
 
+    host_channel_int = regs->host_channels[0].interrupts;
+    printf("CHNL:%x\t", host_channel_int.val);
     if(regs->core_interrupts.host_channel_intr){
-        switch (dev_stat)
-        {
-            case RESET:
-                printf("SETADD\t");
-                dev_stat = ADDRESSED;
-                break;
-            case ADDRESSED:
-                printf("SETKPL\t");
-                dev_stat = KEYPOLL;
-                break;
-            default:
-                printf("SETNON\t");
-                break;
-        }
-        host_channel_int = regs->host_channels[0].interrupts;
         /* Clear pending interrupts.  */
         regs->host_channels[0].interrupt_mask.val = 0;
         regs->host_channels[0].interrupts.val = 0xffffffff;
-        printf("CHNL:%x\t", host_channel_int.val);
     }
 }
 
@@ -386,58 +356,68 @@ static void dwc_setup_interrupts(void){
 
 void usb_init(void){
     DISABLE_INTERRUPTS();
-    printf("1\t");
     if(!ON_EMU)
         bcm2835_setpower(POWER_USB, 1);
-    printf("2\t");
     dwc_soft_reset();
-    printf("3\t");
     dwc_setup_dma_mode();
-    printf("4\t");
     dwc_power_on_host_port();
     dwc_setup_interrupts();
-    printf("5\t");
     ENABLE_INTERRUPTS();
 }
 
-void usb_poll(void){
+void usb_poll(uint8_t request_type){
     union dwc_host_channel_transfer transfer_reg;
     union dwc_host_channel_characteristics char_reg;
     union dwc_host_channel_split_control split_control;
     void *data;
     uint32_t next_frame;
-    if (dev_stat == KEYPOLL){
+    if (can_poll){
+        prev_transfer = request_type;
+        can_poll = 0;
         printf("INPOL\t");
-        // In without data, set device address accordingly, endpoint is 1
-        transfer_reg.packet_id = 0x2;//0x3;
-        transfer_reg.packet_count = 1;
-        transfer_reg.size = sizeof(setup_data);
-        regs->host_channels[0].transfer.val = transfer_reg.val;
-        data = &key_press_data;//&setup_data;
-        regs->host_channels[0].dma_address = (uint32_t)data;
 
-        // Enable channel 0
-        regs->host_channels_interrupt_mask = 1;
+        switch (request_type)
+        {
+            case 0: // get_status
+                break;
+            case 1: // get config
+                setup_data.bmRequestType = 1 >> 7;
+                setup_data.bRequest = USB_DEVICE_REQUEST_GET_CONFIGURATION;
+                setup_data.wValue = setup_data.wIndex = 0;
+                setup_data.wLength = 1;
+                dbuf = &config_val;
+                break;
+            case 2: // set config
+                setup_data.bmRequestType = 0;
+                setup_data.bRequest = USB_DEVICE_REQUEST_SET_CONFIGURATION;
+                setup_data.wValue = config_val;
+                setup_data.wIndex = setup_data.wLength = 0;
+                dbuf = NULL;
+                break;
+            case 3: // get report, hdi keyboard specific
+                setup_data.bmRequestType = 0xa1;
+                setup_data.bRequest = 0x01;
+                setup_data.wValue = 0x0100;
+                setup_data.wIndex = 0x0;
+                setup_data.wLength = sizeof(key_press_data);
+                dbuf = &key_press_data[0];
+                break;
+            case 4: // get config desc
+                setup_data.bmRequestType = 1 >> 7;
+                setup_data.bRequest = USB_DEVICE_REQUEST_GET_DESCRIPTOR;
+                setup_data.wValue = USB_DESCRIPTOR_TYPE_CONFIGURATION >> 7;
+                setup_data.wIndex = 0;
+                setup_data.wLength = sizeof(config_desc);
+                dbuf = &config_desc;
+                break;        
+            default:
+                printf("ERR: UNEXPECTED VAL %d for REQUEST_TYPE.\t", request_type);
+                break;
+        }
+        buf = &setup_data; transfer_total_size = sizeof(setup_data); transferred_size = 0; 
+
+        // Enable channel interrupts
         regs->host_channels[0].interrupt_mask.val = 0x3ff;
-
-        // If device is not high speed we have TODO with this.
-        split_control.val = regs->host_channels[0].split_control.val;
-        printf("SPLITVAL:%x\n",split_control.val);
-        //split_control.split_enable = 1;
-        //regs->host_channels[0].split_control.val = split_control.val;
-        next_frame = (regs->host_frame_number & 0xffff) + 1;
-        char_reg.low_speed = dev_speed_low;
-        char_reg.max_packet_size = 8; // Idk
-        char_reg.endpoint_type = USB_TRANSFER_TYPE_INTERRUPT; //USB_TRANSFER_TYPE_CONTROL;
-        char_reg.device_address = KEYBOARD_DEVICE_ADDRESS; //0;
-        char_reg.endpoint_direction = USB_DIRECTION_IN;
-        char_reg.odd_frame = next_frame & 1;
-        char_reg.packets_per_frame = 1;
-        char_reg.endpoint_number = 1; //0;
-
-        // Starts the transaction.
-        char_reg.channel_enable = 1;
-        regs->host_channels[0].characteristics.val = char_reg.val;        
+        control_transfer();
     }
-
 }

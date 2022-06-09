@@ -59,13 +59,11 @@ enum device_status{
     POWERED = 0,
     RESET = 1,
     ADDRESSED = 2,
-    CONFIGURED = 3,
-    KEYPOLL = 4,
-    DEVICE_STATUS_COUNT = 5,
+    DEVICE_STATUS_COUNT = 3,
 };
 
 void usb_init(void);
 
-void usb_poll(void);
+void usb_poll(uint8_t request_type);
 
 #endif

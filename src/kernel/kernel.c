@@ -65,7 +65,6 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
     mem_init((atag_t *)atags);
     if(!ON_EMU)  
         gpu_init();
-    puts("WELCOME TO PRIMAL OS!\n");  
     printf("INITIALIZING INTERRUPTS...");
     interrupts_init();
     printf("DONE\n");
@@ -75,17 +74,18 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
     printf("INITIALIZING SCHEDULER...");
     process_init();
     printf("DONE\n");
-    //printf("INITIALIZING USB..");
-    //usb_init();
-    //printf("DONE\n");    
+    printf("INITIALIZING USB..");
+    usb_init();
+    printf("DONE\n");    
     //printf("INITIALIZING KEYBOARD...");
     //keyboard_init();
     //printf("DONE\n");
     //dump_keyboard_info(0);
 
-    printf("INITIALIZING SD HOST CONTROLLER...");
-    sd_card_init();
-    printf("DONE\n");
+    //printf("INITIALIZING SD HOST CONTROLLER...");
+    //sd_card_init();
+    //printf("DONE\n");
+    puts("WELCOME TO PRIMAL OS!\n");  
 
     char* thread_1 = "THREAD_1";
     char* thread_2 = "THREAD_2";
@@ -95,17 +95,21 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
     //printf("DONE\n");
     
     //create_kernel_thread(test, thread_2, strlen(thread_2));
+    int once = 1;
     while (1) {
         if (i % 15 == 0){
-            sd_log_regs();
-            sd_read_cid_or_csd(10);
+            //sd_log_regs();
+            //sd_read_cid_or_csd(10);
         }        
         printf("MAIN %d\t", i++);
         //print_descrp();
         //dump_keyboard_info(1);
         udelay(2000000);
 
-        //usb_poll();
+        if(once){
+            once = 0;
+            usb_poll(4);
+        }
         if(t == 6){
             //printf("THREAD CREATION...");
             //create_kernel_thread(test, thread_2, strlen(thread_2));
