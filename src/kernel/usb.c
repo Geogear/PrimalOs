@@ -595,6 +595,7 @@ void key_poll(uint8_t may_skip){
     union dwc_host_channel_characteristics char_reg = regs->host_channels[0].characteristics;
     dmb();
     union dwc_host_channel_transfer transfer_reg = regs->host_channels[0].transfer;
+    char_reg.val = transfer_reg.val = 0;
     void* data = NULL;
 
     switch (interrupt_phase)
