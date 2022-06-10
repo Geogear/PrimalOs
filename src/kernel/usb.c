@@ -26,31 +26,28 @@ static union dwc_host_channel_interrupts host_channel_int;
 
 static volatile struct dwc_regs * const regs = (void*)USB_BASE;
 
-static struct usb_device_descriptor dev_desc = {};
-static struct usb_configuration_descriptor config_desc = {};
 static struct usb_control_setup_data setup_data = {};
-static uint8_t config_val = 0;
 static uint8_t key_press_data[8] = {};
+static uint8_t transfer_buffer[512] = {};
 
 static enum device_status dev_stat = DEVICE_STATUS_COUNT;
+static uint8_t config_num = 0;
 static uint8_t dev_speed_low = 0;
 static uint8_t control_phase = 0;
-static uint8_t next_data_pid = DWC_USB_PID_DATA1;
 static uint8_t active_address = 0;
 static uint8_t transfer_active = 0;
-static void* buf = NULL;
-static void* dbuf = NULL;
 
 static uint8_t prev_transfer = 255;
 static uint8_t can_poll = 0;
 
 static uint32_t round_up_divide(uint32_t dividend, uint32_t divider){
-    printf("---R1---\t");
-    uint32_t result = dividend / divider;
-    printf("---R2---\t");
-    if(dividend % divider != 0)
+    uint32_t result = 0;
+    while(dividend > divider){
+        dividend -= divider;
         ++result;
-    printf("---R3---\t");
+    }
+    if(dividend != 0)
+        ++result;
     return result;
 }
 
@@ -163,42 +160,31 @@ static void control_transfer(void){
     {
         case 0:
             //setup phase
-            printf("SETUP\t");
+            //*printf("SETUP\t");
             char_reg.endpoint_direction = USB_DIRECTION_OUT;
             data = &setup_data;
             transfer_reg.size = sizeof(struct usb_control_setup_data);
             transfer_reg.packet_id = DWC_USB_PID_SETUP;
             control_phase = (setup_data.wLength == 0) ? 2 : 1;
-            next_data_pid = DWC_USB_PID_DATA1;
             break;
         case 1:
             //data phase
-            printf("DATA\t");
+            //*printf("DATA\t");
             char_reg.endpoint_direction = setup_data.bmRequestType >> 7;
             /* We need to carefully take into account that we might be
                  * re-starting a partially complete transfer.  */
             transfer_reg.size = setup_data.wLength;
-            printf("...1...\t");
             transfer_reg.packet_count = round_up_divide(transfer_reg.size,
             char_reg.max_packet_size);
-            printf("...2...\t");
-            data = dbuf;
-            printf("...3...\t");
-            if(dbuf != NULL){
-                printf("...4...\t");
-                printf("DBUF: %x\tDMAADR: %x\tREALADR: %x\t",
-                    (uint32_t)dbuf, (uint32_t)data, (uint32_t)(&config_desc));
-            }
-            printf("...5...\t");
+            data = &transfer_buffer[0];
+            //*printf("DBUF: %x\tDMAADR: %x\tPCKTCNT: %x\t",
+                //(uint32_t)(&transfer_buffer[0]), (uint32_t)data, transfer_reg.packet_count);
             control_phase = 2;
-            transfer_reg.packet_id = next_data_pid;
-            printf("...6...\t");
-            next_data_pid = (next_data_pid == DWC_USB_PID_DATA1) ? DWC_USB_PID_DATA0 : DWC_USB_PID_DATA1;
-            printf("EXITED_CASE\t");
+            transfer_reg.packet_id = DWC_USB_PID_DATA1;
             break;        
         default:
             // status phase
-            printf("STATUS\t");
+            //*printf("STATUS\t");
             /* The direction of the STATUS transaction is opposite the
                 * direction of the DATA transactions, or from device to host if
                 * there were no DATA transactions.  */
@@ -227,11 +213,14 @@ static void control_transfer(void){
 
 static void usb_interrupt_handler(void){
     DISABLE_INTERRUPTS();
-    printf("USB_HANDLER\t");
+    //*printf("USB_HANDLER\t");
     //printf("CORE INTR:%x\tHOST CHNLS: %x\tPORT STAT:%x\tCHAN 0 INT:%x\t",
     //regs->core_interrupts.val, regs->host_channels_interrupt,
     //regs->host_port_ctrlstatus.val, regs->host_channels[0].interrupt_mask.val);
     uint8_t prev_phase = 0;
+    struct usb_configuration_descriptor* config_desc;
+    struct usb_device_descriptor* dev_desc;
+    uint32_t total = 0;
 
     if(transfer_active){
         switch (dev_stat)
@@ -239,20 +228,19 @@ static void usb_interrupt_handler(void){
             case POWERED:
                 udelay(120*MILI_SEC);
                 dwc_reset_host_port();
-                printf("POW-PORT:%x\t",regs->host_port_ctrlstatus);
-                printf("SPED:%d\t",host_port_status.speed);
+                //*printf("POW-PORT:%x\t",regs->host_port_ctrlstatus);
+                //*printf("SPED:%d\t",host_port_status.speed);
                 dev_speed_low = (host_port_status.speed == USB_SPEED_LOW) ? 1 : 0;
                 dev_stat = RESET;
                 break;
             case RESET:
-                printf("RESET\t");
+                //*printf("RESET\t");
                 // Set address setup request
                 setup_data.bmRequestType = USB_BMREQUESTTYPE_DIR_OUT | USB_REQUEST_TYPE_STANDARD
                 | USB_REQUEST_RECIPIENT_DEVICE; // A length way to say zero, lel.
                 setup_data.bRequest = USB_DEVICE_REQUEST_SET_ADDRESS;
                 setup_data.wValue = KEYBOARD_DEVICE_ADDRESS;
                 setup_data.wIndex = setup_data.wLength = 0;
-                buf = &setup_data; dbuf = NULL;
 
                 // Enable channel 0
                 regs->host_channels_interrupt_mask = 1;
@@ -268,14 +256,7 @@ static void usb_interrupt_handler(void){
                 }
                 break;
             case ADDRESSED:
-                printf("ADDRESSED\t");
-                // Boot protocol control request setup stage.
-                /*setup_data.bmRequestType = 0x21;
-                setup_data.bRequest = 0x0b;
-                setup_data.wValue = 0; // 0 for boot protocol, 1 for report protocol
-                setup_data.wIndex = setup_data.wLength = 0;
-                buf = &setup_data; */
-
+                //*printf("ADDRESSED\t");
                 // Enable channel interrupts
                 regs->host_channels[0].interrupt_mask.val = 0x3ff;
 
@@ -287,29 +268,49 @@ static void usb_interrupt_handler(void){
                 }
                 break;
             default:
-                printf("DEFAULT\t");
+                //*printf("DEFAULT\t");
+                break;
         }
     }else if(transfer_active == 0 && prev_transfer != 255){
         switch (prev_transfer)
         {
             case 0: // get_status
-                printf("PREV_TRANSFER: %d", prev_transfer);
+                printf("PREV_TRANSFER: %d\t", prev_transfer);
                 break;
             case 1: // get config
-                printf("GET_CONFIG: %x", config_val);
+                printf("GET_CONFIG: %x\t", transfer_buffer[0]);
                 break;
             case 2: // set config
-                printf("PREV_TRANSFER: %d", prev_transfer);
+                printf("PREV_TRANSFER: %d\t", prev_transfer);
                 break;
-            case 3: // get report, hdi keyboard specific
-                printf("PREV_TRANSFER: %d", prev_transfer);
+            case 3: // get report, hdi specific
+                total = 0;
+                for(uint32_t i = 0; i < 8; ++i)
+                    total += transfer_buffer[i];
+                printf("K");
+                if(total > 0){ //total > 0
+                    for(uint32_t i = 0; i < 8; ++i)
+                        printf("KD%d: %d\t", i, transfer_buffer[i]);
+                }
                 break;
             case 4: // get config desc
+                config_desc = (struct usb_config_descriptor*)(&transfer_buffer[0]);
                 printf("CONFIG DESC LENGLTH: %x, DESCRPTR_TYPE: %x, TOTAL_LEN: %x, NUM_INTRFCS: %x, CONFIG_VAL: %x,"
                 " ICONFIG: %x, ATTRBTS: %x, MAX_POWER: %x\t",
-                config_desc.bLength, config_desc.bDescriptorType, config_desc.wTotalLength, config_desc.bNumInterfaces,
-                config_desc.bConfigurationValue, config_desc.iConfiguration, config_desc.bmAttributes, config_desc.bMaxPower);
-                config_val = config_desc.bConfigurationValue;
+                config_desc->bLength, config_desc->bDescriptorType, config_desc->wTotalLength, config_desc->bNumInterfaces,
+                config_desc->bConfigurationValue, config_desc->iConfiguration, config_desc->bmAttributes, config_desc->bMaxPower);
+                break;
+            case 5: // get protocol, hdi specific
+                printf("GET_PROTOCOL: %x\t", transfer_buffer[0]);
+                break;
+            case 6: // set protocol, hdi specific
+                printf("PREV_TRANSFER: %d\t", prev_transfer);
+                break;
+            case 7: //get device descriptor
+                dev_desc = (struct usb_device_descriptor*)(&transfer_buffer[0]);
+                config_num = dev_desc->bNumConfigurations;
+                printf("DEV DESCRPTR, LEN: %d\tCONF_NUM: %d\tBCD_USB: %x\t", 
+                dev_desc->bLength, config_num, dev_desc->bcdUSB);
                 break;
             default:
                 printf("ERR: UNEXPECTED VAL %d PREV_TRANSFER.\t", prev_transfer);
@@ -324,10 +325,10 @@ static void usb_interrupt_handler(void){
 }
 
 static void usb_interrupt_clearer(void){
-    printf("USB CLEARER\tPORT STAT:%x\tCORE INTR:%x\t",regs->host_port_ctrlstatus,
-    regs->core_interrupts.val);
+    //*printf("USB CLEARER\tPORT STAT:%x\tCORE INTR:%x\t",regs->host_port_ctrlstatus,
+    //regs->core_interrupts.val);
     if (regs->core_interrupts.port_intr){
-        printf("PORT INTR IN\t");
+        //*printf("PORT INTR IN\t");
         /* Clear the interrupt(s), which are "write-clear", by writing the Host
          * Port Control and Status register back to itself.  But as a special
          * case, 'enabled' must be written as 0; otherwise the port will
@@ -347,7 +348,7 @@ static void usb_interrupt_clearer(void){
     }
 
     host_channel_int = regs->host_channels[0].interrupts;
-    printf("CHNL:%x\t", host_channel_int.val);
+    //*printf("CHNL:%x\t", host_channel_int.val);
     if(regs->core_interrupts.host_channel_intr){
         /* Clear pending interrupts.  */
         regs->host_channels[0].interrupt_mask.val = 0;
@@ -383,7 +384,7 @@ void usb_init(void){
     dwc_soft_reset();
     dwc_setup_dma_mode();
     dwc_power_on_host_port();
-    dwc_setup_interrupts();
+    dwc_setup_interrupts();  
     ENABLE_INTERRUPTS();
 }
 
@@ -393,7 +394,7 @@ int usb_poll(uint8_t request_type){
     union dwc_host_channel_split_control split_control;
     int ret_val = -1;
     if (can_poll){
-        printf("INPOL\t");
+        //*printf("INPOL\t");
         prev_transfer = request_type;
         can_poll = 0;
         control_phase = 0;
@@ -408,36 +409,52 @@ int usb_poll(uint8_t request_type){
                 setup_data.bRequest = USB_DEVICE_REQUEST_GET_CONFIGURATION;
                 setup_data.wValue = setup_data.wIndex = 0;
                 setup_data.wLength = 1;
-                dbuf = &config_val;
                 break;
             case 2: // set config
                 setup_data.bmRequestType = 0;
                 setup_data.bRequest = USB_DEVICE_REQUEST_SET_CONFIGURATION;
                 setup_data.wValue = 1;//config_val;
                 setup_data.wIndex = setup_data.wLength = 0;
-                dbuf = NULL;
                 break;
-            case 3: // get report, hdi keyboard specific
+            case 3: // get report, hdi specific
                 setup_data.bmRequestType = 0xa1;
                 setup_data.bRequest = 0x01;
                 setup_data.wValue = 0x0100;
                 setup_data.wIndex = 0x0;
                 setup_data.wLength = sizeof(key_press_data);
-                dbuf = &key_press_data[0];
                 break;
             case 4: // get config desc
                 setup_data.bmRequestType = USB_BMREQUESTTYPE_DIR_IN;
                 setup_data.bRequest = USB_DEVICE_REQUEST_GET_DESCRIPTOR;
                 setup_data.wValue = USB_DESCRIPTOR_TYPE_CONFIGURATION << 7;
                 setup_data.wIndex = 0;
-                setup_data.wLength = sizeof(config_desc);
-                dbuf = &config_desc;
-                break;        
+                setup_data.wLength = sizeof(struct usb_configuration_descriptor);
+                break;
+            case 5: // get protocol, hdi specific
+                setup_data.bmRequestType = 0xa1;
+                setup_data.bRequest = 0x03;
+                setup_data.wValue = 0;
+                setup_data.wIndex = 0;
+                setup_data.wLength = 1;         
+                break;
+            case 6: // set protocol, hdi specific
+                setup_data.bmRequestType = 0x21;
+                setup_data.bRequest = 0x0b;
+                setup_data.wValue = 0; // 0 for boot, 1 for report
+                setup_data.wIndex = 0;
+                setup_data.wLength = 0;
+                break;
+            case 7: //get device descriptor
+                setup_data.bmRequestType = USB_BMREQUESTTYPE_DIR_IN;
+                setup_data.bRequest = USB_DEVICE_REQUEST_GET_DESCRIPTOR;
+                setup_data.wValue = USB_DESCRIPTOR_TYPE_DEVICE << 7;
+                setup_data.wIndex = 0;
+                setup_data.wLength = sizeof(struct usb_device_descriptor);
+                break;
             default:
                 printf("ERR: UNEXPECTED VAL %d for REQUEST_TYPE.\t", request_type);
                 break;
         }
-        buf = &setup_data;
 
         // Enable channel interrupts
         regs->host_channels[0].interrupt_mask.val = 0x3ff;

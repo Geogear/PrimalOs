@@ -26,41 +26,6 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
     uint32_t i = 0;
 
     uart_init();
-
-    /*uint32_t dst = 0, tmp = 0;
-    void* v = NULL;
-      /
-        + in c1 register set all to b01.
-      /
-   
-    / Enable access for domain control access register. /
-    v = ((void*)(&dst));
-    c3_domain_access_control_r* dac_reg = (c3_domain_access_control_r*)v;
-    dst = 0xffffffff;
-
-    / Write the changed value. /
-    __asm volatile( "mcr p15, 0, %[dst], c1, c0, 2"
-          :
-          : [dst] "r" (dst));
-
-    / Write the changed value. /
-    __asm volatile( "mcr p15, 0, %[dst], c10, c0, 0"
-          :
-          : [dst] "r" (dst));
-
-    / Read back to confirm the value is changed. /
-    __asm volatile("mrc p15, 0, %[tmp], c10, c0, 0"
-          : [tmp] "=r" (tmp));
-
-    log_uint(tmp, 'h');
-    log_uint(tmp, 'b');              
-
-    / Read back to confirm the value is changed. /
-    __asm volatile("mrc p15, 0, %[tmp], c1, c0, 2"
-          : [tmp] "=r" (tmp));
-
-    log_uint(tmp, 'h');
-    log_uint(tmp, 'b');     */
     //bcm2835_power_init();
     mem_init((atag_t *)atags);
     if(!ON_EMU)  
@@ -77,10 +42,6 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
     printf("INITIALIZING USB..");
     usb_init();
     printf("DONE\n");    
-    //printf("INITIALIZING KEYBOARD...");
-    //keyboard_init();
-    //printf("DONE\n");
-    //dump_keyboard_info(0);
 
     //printf("INITIALIZING SD HOST CONTROLLER...");
     //sd_card_init();
@@ -95,30 +56,25 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
     //printf("DONE\n");
     
     //create_kernel_thread(test, thread_2, strlen(thread_2));
-    printf("\n--- GET CONFIG ---\n");
-    while(usb_poll(1) == -1){
+    printf("\n--- GET DEV DESCRPTR ---\n");
+    while(usb_poll(7) == -1){
         udelay(2*SEC);
     }
-    udelay(5*SEC);
-    printf("\n--- GET CONFIG DESC ---\n");
+    udelay(2*SEC);
+    printf("\n--- GET CFG DESCRPTR ---\n");
     usb_poll(4);
-    udelay(5*SEC);
-    printf("\n--- SET CONFIG ---\n");
-    usb_poll(2);
-    udelay(5*SEC);
-    printf("\n--- GET CONFIG ---\n");
-    usb_poll(1);
-    udelay(5*SEC);            
+    udelay(2*SEC);
+
     while (1) {
         if (i % 15 == 0){
             //sd_log_regs();
             //sd_read_cid_or_csd(10);
         }        
-        printf("MAIN %d\t", i++);
+        //printf("MAIN %d\t", i++);
         //print_descrp();
         //dump_keyboard_info(1);
-        udelay(2000000);
-
+        udelay(100*MILI_SEC);
+        usb_poll(3);
         if(t == 6){
             //printf("THREAD CREATION...");
             //create_kernel_thread(test, thread_2, strlen(thread_2));
