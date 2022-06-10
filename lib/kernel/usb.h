@@ -59,11 +59,16 @@ enum device_status{
     POWERED = 0,
     RESET = 1,
     ADDRESSED = 2,
-    DEVICE_STATUS_COUNT = 3,
+    CONFIGURED = 3,
+    DEVICE_STATUS_COUNT = 4,
 };
 
 void usb_init(void);
 
 int usb_poll(uint8_t request_type);
+
+void keyboard_enum(void);
+
+void key_poll(uint8_t may_skip);
 
 #endif

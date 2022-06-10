@@ -183,6 +183,16 @@ struct usb_endpoint_descriptor {
     uint8_t bInterval;
 } __packed;
 
+struct hid_descriptor{
+    uint8_t bLength;
+    uint8_t bDescriptorType;
+    uint16_t bcdHID;
+    uint8_t bCountryCode;
+    uint8_t bNumDescriptors;
+    uint8_t bDescriptorTypeR;
+    uint16_t wDescriptorLength;
+} __packed;
+
 #define KEYBOARD_DEVICE_ADDRESS 1
 
 #endif

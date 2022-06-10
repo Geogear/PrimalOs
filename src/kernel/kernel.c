@@ -56,14 +56,7 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
     //printf("DONE\n");
     
     //create_kernel_thread(test, thread_2, strlen(thread_2));
-    printf("\n--- GET DEV DESCRPTR ---\n");
-    while(usb_poll(7) == -1){
-        udelay(2*SEC);
-    }
-    udelay(2*SEC);
-    printf("\n--- GET CFG DESCRPTR ---\n");
-    usb_poll(4);
-    udelay(2*SEC);
+    keyboard_enum();
     printf("\n");
 
     while (1) {
@@ -71,11 +64,11 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
             //sd_log_regs();
             //sd_read_cid_or_csd(10);
         }        
-        printf("MAIN %d\t", i++);
+        //printf("MAIN %d\t", i++);
         //print_descrp();
         //dump_keyboard_info(1);
-        udelay(2*SEC);
-        usb_poll(3);
+        udelay(1*SEC);
+        key_poll(1);
         if(t == 6){
             //printf("THREAD CREATION...");
             //create_kernel_thread(test, thread_2, strlen(thread_2));

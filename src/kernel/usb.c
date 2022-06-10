@@ -4,6 +4,7 @@
 #include <kernel/kerio.h>
 #include <kernel/timer.h>
 #include <kernel/usb_std_defs.h>
+#include <common/stdlib.h>
 
 /** Round a number up to the next multiple of the word size.  */
 #define WORD_ALIGN(n) (((n) + sizeof(uint32_t) - 1) & ~(sizeof(uint32_t) - 1))
@@ -31,14 +32,33 @@ static uint8_t key_press_data[8] = {};
 static uint8_t transfer_buffer[512] = {};
 
 static enum device_status dev_stat = DEVICE_STATUS_COUNT;
-static uint8_t config_num = 0;
+static uint8_t config_val = 0;
+static uint8_t interface_num = 0;
 static uint8_t dev_speed_low = 0;
 static uint8_t control_phase = 0;
+static uint8_t interrupt_phase = 0;
 static uint8_t active_address = 0;
 static uint8_t transfer_active = 0;
+static uint8_t endpoint_address = 0;
+static uint8_t endpoint_interval = 0;
+static uint8_t interface_index = 0;
+static uint8_t interrupt_poll_active = 0;
+static uint32_t config_desc_len = sizeof(struct usb_configuration_descriptor);
 
 static uint8_t prev_transfer = 255;
 static uint8_t can_poll = 0;
+
+static void buf_key_data_check(uint32_t x){
+    uint32_t total = 0;
+    for(uint32_t i = 0; i < 8; ++i)
+        total += transfer_buffer[i];
+    
+    if(total > 0){
+        for(uint32_t i = 0; i < 8; ++i)
+            printf("KD%d: %d\t", i, transfer_buffer[i]);
+    }else
+        printf("%d",x);
+}
 
 static uint32_t round_up_divide(uint32_t dividend, uint32_t divider){
     uint32_t result = 0;
@@ -220,7 +240,6 @@ static void usb_interrupt_handler(void){
     uint8_t prev_phase = 0;
     struct usb_configuration_descriptor* config_desc;
     struct usb_device_descriptor* dev_desc;
-    uint32_t total = 0;
 
     union dwc_core_interrupts interrupts = regs->core_interrupts;
     if(interrupts.sof_intr){
@@ -283,6 +302,20 @@ static void usb_interrupt_handler(void){
                     can_poll = 1;
                 }
                 break;
+            case CONFIGURED:
+                printf("CONFIGURED\t");
+                switch (interrupt_phase)
+                {
+                    case 1:
+                        key_poll(0);
+                        break;
+                    case 2:
+                        buf_key_data_check(21);
+                        transfer_active = 0;
+                        interrupt_phase = 0;
+                        break;
+                }
+                break;
             default:
                 printf("DEFAULT\t");
                 break;
@@ -300,17 +333,13 @@ static void usb_interrupt_handler(void){
                 printf("PREV_TRANSFER: %d\t", prev_transfer);
                 break;
             case 3: // get report, hdi specific
-                total = 0;
-                for(uint32_t i = 0; i < 8; ++i)
-                    total += transfer_buffer[i];
-                printf("K");
-                if(total > 0){ //total > 0
-                    for(uint32_t i = 0; i < 8; ++i)
-                        printf("KD%d: %d\t", i, transfer_buffer[i]);
-                }
+                buf_key_data_check(11);
                 break;
             case 4: // get config desc
                 config_desc = (struct usb_config_descriptor*)(&transfer_buffer[0]);
+                config_desc_len = config_desc->wTotalLength;
+                config_val = config_desc->bConfigurationValue;
+                interface_num = config_desc->bNumInterfaces;
                 printf("CONFIG DESC LENGLTH: %x, DESCRPTR_TYPE: %x, TOTAL_LEN: %x, NUM_INTRFCS: %x, CONFIG_VAL: %x,"
                 " ICONFIG: %x, ATTRBTS: %x, MAX_POWER: %x\t",
                 config_desc->bLength, config_desc->bDescriptorType, config_desc->wTotalLength, config_desc->bNumInterfaces,
@@ -324,9 +353,8 @@ static void usb_interrupt_handler(void){
                 break;
             case 7: //get device descriptor
                 dev_desc = (struct usb_device_descriptor*)(&transfer_buffer[0]);
-                config_num = dev_desc->bNumConfigurations;
                 printf("DEV DESCRPTR, LEN: %d\tCONF_NUM: %d\tBCD_USB: %x\t", 
-                dev_desc->bLength, config_num, dev_desc->bcdUSB);
+                dev_desc->bLength, dev_desc->bNumConfigurations, dev_desc->bcdUSB);
                 break;
             default:
                 printf("ERR: UNEXPECTED VAL %d PREV_TRANSFER.\t", prev_transfer);
@@ -363,6 +391,7 @@ static void usb_interrupt_clearer(void){
         dev_stat = DEVICE_STATUS_COUNT;
         transfer_active = 0;
         active_address = 0;
+        interrupt_poll_active = 0;
     }
 
     host_channel_int = regs->host_channels[0].interrupts;
@@ -407,9 +436,6 @@ void usb_init(void){
 }
 
 int usb_poll(uint8_t request_type){
-    union dwc_host_channel_transfer transfer_reg;
-    union dwc_host_channel_characteristics char_reg;
-    union dwc_host_channel_split_control split_control;
     int ret_val = -1;
     if (can_poll){
         printf("INPOL\t");
@@ -431,7 +457,7 @@ int usb_poll(uint8_t request_type){
             case 2: // set config
                 setup_data.bmRequestType = 0;
                 setup_data.bRequest = USB_DEVICE_REQUEST_SET_CONFIGURATION;
-                setup_data.wValue = 1;//config_val;
+                setup_data.wValue = config_val;
                 setup_data.wIndex = setup_data.wLength = 0;
                 break;
             case 3: // get report, hdi specific
@@ -446,7 +472,7 @@ int usb_poll(uint8_t request_type){
                 setup_data.bRequest = USB_DEVICE_REQUEST_GET_DESCRIPTOR;
                 setup_data.wValue = USB_DESCRIPTOR_TYPE_CONFIGURATION << 8;
                 setup_data.wIndex = 0;
-                setup_data.wLength = sizeof(struct usb_configuration_descriptor);
+                setup_data.wLength = config_desc_len;
                 break;
             case 5: // get protocol, hdi specific
                 setup_data.bmRequestType = 0xa1;
@@ -480,4 +506,135 @@ int usb_poll(uint8_t request_type){
         ret_val = 0;
     }
     return ret_val;
+}
+
+static inline void poll_wait(uint32_t request_type, uint32_t milisecs){
+    while(usb_poll(request_type) == -1){
+        udelay(milisecs*MILI_SEC);
+    }
+}
+
+void keyboard_enum(void){
+    printf("\n--- GET DEV DESCRPTR ---\n");
+    poll_wait(7, 200);
+    bzero(&transfer_buffer[0], 512);
+
+    printf("\n--- GET CFG DESCRPTR 0 ---\n");
+    poll_wait(4, 200);
+
+    udelay(2*SEC);
+    struct usb_interface_descriptor* uid = NULL;
+
+    printf("\n--- GET CFG DESCRPTR 0 ---\n");
+    poll_wait(4, 200);
+    uint32_t offset = sizeof(struct usb_configuration_descriptor);
+    uint8_t exit = 0;
+
+    udelay(2*SEC);
+    for(uint32_t i = 0; i < interface_num; ++i){
+        uid = (struct usb_interface_descriptor*)(&transfer_buffer[offset]);
+        printf("\n--- INTERFACE %d ---\n", i);
+        printf("INTERFACE DESCRPTR, LEN: %x, DSCRPTR_TYPE: %x, INTRFC_NUM: %x,"
+        "ALTERNATE_STTNG: %x, NUM_ENDPOINTS: %x, INTRFC_CLASS: %x,"
+        "INTRFC_SUBCLSS: %X, INTRFC_PRTCL: %x, INTRFC: %x",
+        uid->bLength, uid->bDescriptorType, uid->bInterfaceNumber,
+        uid->bAlternateSetting, uid->bNumEndpoints, uid->bInterfaceClass,
+        uid->bInterfaceSubClass, uid->bInterfaceProtocol, uid->iInterface);
+        uint8_t epn = uid->bNumEndpoints;
+        uint8_t cur_interface = uid->bInterfaceNumber;
+        offset += sizeof(struct usb_interface_descriptor);
+
+        struct hid_descriptor* hd = (struct hid_descriptor*)(&transfer_buffer[offset]);
+        printf("\n--- INTERFACE %d HID DESCRIPTOR ---\n",i);
+        printf("HID DESCRIPTOR, LEN: %x, DESCRPTR_TYPE: %x, bCD_HID: %x, bCNTRY_CODE: %x,"
+        " NUM_DESCRPTR: %x, DESCRPTR_TYPE_R: %x, DESCRPTR_LEN: %x", hd->bLength, hd->bDescriptorType,
+        hd->bcdHID, hd->bCountryCode, hd->bNumDescriptors, hd->bDescriptorTypeR, hd->wDescriptorLength);
+
+        offset += sizeof(struct hid_descriptor);
+        for(uint32_t j = 0; j < epn; ++j){
+            struct usb_endpoint_descriptor* ued = (struct usb_endpoint_descriptor*)(&transfer_buffer[offset]);
+            printf("\n--- INTERFACE %d ENPOINT %d ---\n", i, j);
+            printf("EPOINT DESCRPTR, LEN: %x, DESCRPTR_TYPE: %x, EPOINT_ADRS: %x, "
+            "ATTRBTS: %x, MAX_PKT_SIZE: %x, bINTRVL: %x", ued->bLength, ued->bDescriptorType,
+            ued->bEndpointAddress, ued->bmAttributes, ued->wMaxPacketSize, ued->bInterval);
+            
+            if(((ued->bmAttributes & USB_TRANSFER_TYPE_INTERRUPT) == USB_TRANSFER_TYPE_INTERRUPT)
+            && ((ued->bEndpointAddress >> 7) == USB_DIRECTION_IN)){
+                printf("...ENTERED...\t");
+                endpoint_address = ued->bEndpointAddress;
+                endpoint_interval = ued->bInterval;
+                interface_index = cur_interface;
+                exit = 1;
+                break;
+            }
+            offset += sizeof(struct usb_endpoint_descriptor);
+        }
+        if(exit)
+            break;
+    }
+
+    if(exit == 0){
+        printf("\nERROR: INTERRUPT IN ENDPOINT HASN'T BEEN FOUND.\n");
+    }
+
+    // Set config to config_val
+    poll_wait(2, 200);
+    udelay(2*SEC);
+    dev_stat = CONFIGURED;
+    interrupt_poll_active = 1;
+    interrupt_phase = 0;
+}
+
+void key_poll(uint8_t may_skip){
+    if((interrupt_poll_active == 0 || transfer_active) && may_skip)
+        return;
+    for(uint32_t i = 0; i < 8; ++i)
+        transfer_buffer[i] = 0;
+    transfer_active = 1;
+    printf("KEYPOLL\t");
+    union dwc_host_channel_characteristics char_reg = regs->host_channels[0].characteristics;
+    dmb();
+    union dwc_host_channel_transfer transfer_reg = regs->host_channels[0].transfer;
+    void* data = NULL;
+
+    switch (interrupt_phase)
+    {
+        case 0:
+            setup_data.bmRequestType = 0xa1;
+            setup_data.bRequest = 0x01;
+            setup_data.wValue = 0x0100;
+            setup_data.wIndex = interface_index;
+            setup_data.wLength = 8;
+            data = &setup_data;
+            char_reg.endpoint_direction = USB_DIRECTION_OUT;
+            transfer_reg.packet_id = 0x0;
+            break;
+        case 1:
+            char_reg.endpoint_direction = USB_DIRECTION_IN;
+            data = &transfer_buffer[0];
+            break;
+    }
+
+    char_reg.max_packet_size = 8;
+    char_reg.endpoint_number = endpoint_address & 0x0f;
+    printf("EPADRESS: %x, EDPNUM:%x\t",endpoint_address, char_reg.endpoint_number);
+    char_reg.low_speed = dev_speed_low;
+    char_reg.endpoint_type = USB_TRANSFER_TYPE_INTERRUPT;
+    char_reg.packets_per_frame = 1;
+    char_reg.device_address = active_address;
+    char_reg.odd_frame = ((regs->host_frame_number & 0xffff) + 1) & 1;
+    regs->host_channels[0].characteristics = char_reg;
+
+    // Enable channel interrupts
+    regs->host_channels[0].interrupt_mask.val = 0x3ff;
+
+    transfer_reg.size = 8;
+    transfer_reg.packet_count = 1;
+    regs->host_channels[0].transfer = transfer_reg;
+    dmb();
+    regs->host_channels[0].dma_address = (uint32_t)data;
+
+    ++interrupt_phase;
+    char_reg.channel_enable = 1;
+    regs->host_channels[0].characteristics = char_reg;
 }
