@@ -64,16 +64,17 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
     printf("\n--- GET CFG DESCRPTR ---\n");
     usb_poll(4);
     udelay(2*SEC);
+    printf("\n");
 
     while (1) {
         if (i % 15 == 0){
             //sd_log_regs();
             //sd_read_cid_or_csd(10);
         }        
-        //printf("MAIN %d\t", i++);
+        printf("MAIN %d\t", i++);
         //print_descrp();
         //dump_keyboard_info(1);
-        udelay(100*MILI_SEC);
+        udelay(2*SEC);
         usb_poll(3);
         if(t == 6){
             //printf("THREAD CREATION...");
