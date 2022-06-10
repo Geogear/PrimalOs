@@ -95,7 +95,20 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
     //printf("DONE\n");
     
     //create_kernel_thread(test, thread_2, strlen(thread_2));
-    int once = 1;
+    printf("\n--- GET CONFIG ---\n");
+    while(usb_poll(1) == -1){
+        udelay(2*SEC);
+    }
+    udelay(5*SEC);
+    printf("\n--- GET CONFIG DESC ---\n");
+    usb_poll(4);
+    udelay(5*SEC);
+    printf("\n--- SET CONFIG ---\n");
+    usb_poll(2);
+    udelay(5*SEC);
+    printf("\n--- GET CONFIG ---\n");
+    usb_poll(1);
+    udelay(5*SEC);            
     while (1) {
         if (i % 15 == 0){
             //sd_log_regs();
@@ -106,10 +119,6 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
         //dump_keyboard_info(1);
         udelay(2000000);
 
-        if(once){
-            once = 0;
-            usb_poll(4);
-        }
         if(t == 6){
             //printf("THREAD CREATION...");
             //create_kernel_thread(test, thread_2, strlen(thread_2));

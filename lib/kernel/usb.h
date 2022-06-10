@@ -64,6 +64,6 @@ enum device_status{
 
 void usb_init(void);
 
-void usb_poll(uint8_t request_type);
+int usb_poll(uint8_t request_type);
 
 #endif
