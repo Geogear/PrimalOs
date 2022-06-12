@@ -16,6 +16,7 @@
 #include <common/string.h>
 
 void test(void);
+void keyboard_poller(void);
 uint32_t k = 0, t = 0;
 
 void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
