@@ -48,16 +48,14 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
     //printf("DONE\n");
     puts("WELCOME TO PRIMAL OS!\n");  
 
-    char* thread_1 = "THREAD_1";
+    char* thread_1 = "KEYBOARD_POLLER";
     char* thread_2 = "THREAD_2";
 
     //printf("THREAD CREATION...");
-    //create_kernel_thread(test, thread_1, strlen(thread_1));
+    create_kernel_thread(keyboard_poller, thread_1, strlen(thread_1));
     //printf("DONE\n");
     
     //create_kernel_thread(test, thread_2, strlen(thread_2));
-    keyboard_enum();
-    printf("\n");
 
     while (1) {
         if (i % 15 == 0){
@@ -75,6 +73,10 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
             //printf("DONE\n");
         }
     }
+}
+
+void keyboard_poller(void){
+    keyboard_enum();
 }
 
 void test(void) {
