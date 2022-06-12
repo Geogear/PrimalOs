@@ -47,7 +47,7 @@ static void block(uint32_t blocker_id){
     append_pcb_list(&block_queue, old_thread);
 
     // Context Switch
-    switch_to_thread(old_thread, new_thread);
+    context_switch(old_thread, new_thread);
     ENABLE_INTERRUPTS();       
 }
 
@@ -218,7 +218,7 @@ void mutex_lock(mutex_t * lock) {
         append_pcb_list(&lock->wait_queue, old_thread);
 
         // Context Switch
-        switch_to_thread(old_thread, new_thread);
+        context_switch(old_thread, new_thread);
         ENABLE_INTERRUPTS();
     }
     lock->locker = current_process;

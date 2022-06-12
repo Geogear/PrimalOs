@@ -15,7 +15,7 @@ then share that semaphore with the cooperated threads to snychronize.
 Destroy call should only be made once.
 */
 
-int sem_init(semt_t* sem, int val);
+int sem_init(sem_t* sem, int val);
 void sem_wait(sem_t* sem);
 void sem_signal(sem_t* sem);
 void sem_destroy(sem_t* sem);
