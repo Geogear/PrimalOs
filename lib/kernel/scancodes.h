@@ -145,12 +145,12 @@ static const uint8_t scancodes_ascii[] =
 
 static const uint8_t scan_ascii_size = 59;
 
-uint8_t get_scancode(uint8_t id){
+uint8_t get_ascii_from_sc(uint8_t id){
     return id < scan_ascii_size ? scancodes_ascii[id] : ASCII_NAME_COUNT;
 }
 
-uint8_t in_printable_range(uint8_t sc_code){
-    return sc_code >= SPC && sc_code < DEL;
+uint8_t in_printable_range(uint8_t ascii){
+    return (ascii >= SPC && ascii < DEL) | ascii == LF;
 }
 
 #endif
