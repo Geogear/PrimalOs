@@ -4,6 +4,7 @@
 #include <kernel/gpu.h>
 #include <kernel/keyboard.h>
 #include <common/stdlib.h>
+#include <kernel/usb.h>
 #include <stdarg.h>
 
 char getc(void) {

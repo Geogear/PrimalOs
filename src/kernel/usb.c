@@ -31,10 +31,9 @@ static union dwc_host_channel_interrupts host_channel_int;
 static volatile struct dwc_regs * const regs = (void*)USB_BASE;
 
 static struct usb_control_setup_data setup_data = {};
-static uint8_t key_press_data[8] = {};
 static uint8_t transfer_buffer[512] = {};
 static uint8_t line_buffer[256] = {};
-static uint8_t cursor = 0;
+static uint16_t cursor = 0;
 
 static enum device_status dev_stat = DEVICE_STATUS_COUNT;
 static uint8_t config_val = 0;
@@ -55,6 +54,7 @@ static uint8_t can_poll = 0;
 static uint8_t enter_pressed = 0;
 
 static void buf_key_data_check(uint32_t x){
+    printf("BKD_CHECK: %x\t",x);
     /*uint32_t total = 0;
     for(uint32_t i = 0; i < 8; ++i)
         total += transfer_buffer[i];
@@ -66,12 +66,17 @@ static void buf_key_data_check(uint32_t x){
         printf("%d",x);*/
     // TODO convert scancodes to ascii values and store in the line buf
     // TODO convert each key until the first non-printable character
-    uint8_t input = 0;
+    //uint8_t input = 0;
+
+    // If a line is read but not processed, don't further read any key press data.
+    if(enter_pressed)
+        return;
+
     struct key_press_report* krp = (struct key_press_report*)(&transfer_buffer[0]);
     for(uint32_t i = 0; i < 7; ++i){
         uint8_t ascii = get_ascii_from_sc(krp->key_press_data[i]);
         if(in_printable_range(ascii)){
-            input = 1;
+            //input = 1;
             // Make sure line buffer doesn't overflow
             if(cursor < 256)
                 line_buffer[cursor++] = ascii;
@@ -360,7 +365,7 @@ static void usb_interrupt_handler(void){
                 buf_key_data_check(11);
                 break;
             case 4: // get config desc
-                config_desc = (struct usb_config_descriptor*)(&transfer_buffer[0]);
+                config_desc = (struct usb_configuration_descriptor*)(&transfer_buffer[0]);
                 config_desc_len = config_desc->wTotalLength;
                 config_val = config_desc->bConfigurationValue;
                 interface_num = config_desc->bNumInterfaces;
@@ -669,7 +674,7 @@ void get_line(char* buf, uint32_t len){
     cursor = 0;
     bzero(line_buffer, 256);
     while(!enter_pressed){
-        key_poll();
+        key_poll(1);
         udelay(endpoint_interval*MILI_SEC);
     }
 

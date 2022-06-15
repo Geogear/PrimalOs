@@ -150,7 +150,7 @@ uint8_t get_ascii_from_sc(uint8_t id){
 }
 
 uint8_t in_printable_range(uint8_t ascii){
-    return (ascii >= SPC && ascii < DEL) | ascii == LF;
+    return (ascii >= SPC && ascii < DEL) | (ascii == LF);
 }
 
 #endif

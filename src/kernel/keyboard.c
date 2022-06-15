@@ -1,20 +1,21 @@
-#include <kernel/interrupts.h>
+/*#include <kernel/interrupts.h>
 #include <kernel/usb.h>
 #include <kernel/kerio.h>
 #include <kernel/scancodes.h>
 #include <kernel/framebuffer.h>
-#include <kernel/gpu.h>
+#include <kernel/gpu.h>*/
 
 //#define INPUT_BUFFER_SIZE 512
 
-static usb_mdio_control_t* keyboard_control;
-static usb_mdio_data_t* keyboard_data;
-static usb_vbus_t* keyboard_vbus;
+//static usb_mdio_control_t* keyboard_control;
+//static usb_mdio_data_t* keyboard_data;
+//static usb_vbus_t* keyboard_vbus;
 //static unsigned char input_buffer[INPUT_BUFFER_SIZE] = {};
-static uint16_t cursor_pos = 0;
-static uint8_t tab_length = 4;
-static uint8_t capslock_on = 1;
+//static uint16_t cursor_pos = 0;
+//static uint8_t tab_length = 4;
+//static uint8_t capslock_on = 1;
 
+/*
 static void keyboard_irq_handler(void){
     uint16_t upper8 = keyboard_data->mdio_data;
     printf("KEYBOARD HANDLER: %u\n", upper8);
@@ -94,3 +95,4 @@ static void keyboard_irq_handler(void){
         }
     }
 }
+*/
