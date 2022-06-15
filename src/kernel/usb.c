@@ -57,11 +57,12 @@ extern uint8_t ilock_active = 0;
 extern mutex_t input_lock = {};
 
 static void buf_key_data_check(uint32_t x){
-    printf("BKD_CHECK: %x\t",x);
+    //*printerr("BKD_CHECK: %x\t",x);
+    udelay(500);
     
     for(uint32_t i = 0; i < 8; ++i){
         if(transfer_buffer[i] != 0){
-            printf("KD%d: %x\t", i, transfer_buffer[i]);  
+            //*printerr("KD%d: %x\t", i, transfer_buffer[i]);  
         }
     }
     // convert scancodes to ascii values and store in the line buf
@@ -75,7 +76,7 @@ static void buf_key_data_check(uint32_t x){
     struct key_press_report* krp = (struct key_press_report*)(&transfer_buffer[0]);
     for(uint32_t i = 0; i < 7; ++i){
         uint8_t ascii = get_ascii_from_sc(krp->key_press_data[i]);
-        printf("ASC%d: %d\t", i, ascii);
+        //*printerr("ASC%d: %d\t", i, ascii);
         if(in_printable_range(ascii)){
             //input = 1;
             // Make sure line buffer doesn't overflow
@@ -210,7 +211,7 @@ static void control_transfer(void){
     {
         case 0:
             //setup phase
-            //*printf("SETUP\t");
+            //*printerr("SETUP\t");
             char_reg.endpoint_direction = USB_DIRECTION_OUT;
             data = &setup_data;
             transfer_reg.size = sizeof(struct usb_control_setup_data);
@@ -219,7 +220,7 @@ static void control_transfer(void){
             break;
         case 1:
             //data phase
-            //*printf("DATA\t");
+            //*printerr("DATA\t");
             char_reg.endpoint_direction = setup_data.bmRequestType >> 7;
             /* We need to carefully take into account that we might be
                  * re-starting a partially complete transfer.  */
@@ -227,14 +228,14 @@ static void control_transfer(void){
             transfer_reg.packet_count = round_up_divide(transfer_reg.size,
             char_reg.max_packet_size);
             data = &transfer_buffer[0];
-            //printf("DBUF: %x\tDMAADR: %x\tPCKTCNT: %x\t",
+            //printerr("DBUF: %x\tDMAADR: %x\tPCKTCNT: %x\t",
                 //(uint32_t)(&transfer_buffer[0]), (uint32_t)data, transfer_reg.packet_count);
             control_phase = 2;
             transfer_reg.packet_id = DWC_USB_PID_DATA1;
             break;        
         default:
             // status phase
-            //*printf("STATUS\t");
+            //*printerr("STATUS\t");
             /* The direction of the STATUS transaction is opposite the
                 * direction of the DATA transactions, or from device to host if
                 * there were no DATA transactions.  */
@@ -262,9 +263,10 @@ static void control_transfer(void){
 }
 
 static void usb_interrupt_handler(void){
-    DISABLE_INTERRUPTS();
-    //*printf("USB_HANDLER\t");
-    //printf("CORE INTR:%x\tHOST CHNLS: %x\tPORT STAT:%x\tCHAN 0 INT:%x\t",
+    udelay(500);
+    //DISABLE_INTERRUPTS();
+    //*printerr("USB_HANDLER\t");
+    //printerr("CORE INTR:%x\tHOST CHNLS: %x\tPORT STAT:%x\tCHAN 0 INT:%x\t",
     //regs->core_interrupts.val, regs->host_channels_interrupt,
     //regs->host_port_ctrlstatus.val, regs->host_channels[0].interrupt_mask.val);
     uint8_t prev_phase = 0;
@@ -293,13 +295,13 @@ static void usb_interrupt_handler(void){
             case POWERED:
                 udelay(120*MILI_SEC);
                 dwc_reset_host_port();
-                //*printf("POW-PORT:%x\t",regs->host_port_ctrlstatus);
-                //*printf("SPED:%d\t",host_port_status.speed);
+                //*printerr("POW-PORT:%x\t",regs->host_port_ctrlstatus);
+                //*printerr("SPED:%d\t",host_port_status.speed);
                 dev_speed_low = (host_port_status.speed == USB_SPEED_LOW) ? 1 : 0;
                 dev_stat = RESET;
                 break;
             case RESET:
-                //*printf("RESET\t");
+                //*printerr("RESET\t");
                 // Set address setup request
                 setup_data.bmRequestType = USB_BMREQUESTTYPE_DIR_OUT | USB_REQUEST_TYPE_STANDARD
                 | USB_REQUEST_RECIPIENT_DEVICE; // A length way to say zero, lel.
@@ -321,7 +323,7 @@ static void usb_interrupt_handler(void){
                 }
                 break;
             case ADDRESSED:
-                //*printf("ADDRESSED\t");
+                //*printerr("ADDRESSED\t");
                 // Enable channel interrupts
                 regs->host_channels[0].interrupt_mask.val = 0x3ff;
 
@@ -333,7 +335,7 @@ static void usb_interrupt_handler(void){
                 }
                 break;
             case CONFIGURED:
-                //*printf("CONFIGURED\t");
+                //*printerr("CONFIGURED\t");
                 switch (interrupt_phase)
                 {
                     case 1:
@@ -347,20 +349,20 @@ static void usb_interrupt_handler(void){
                 }
                 break;
             default:
-                //*printf("DEFAULT\t");
+                //*printerr("DEFAULT\t");
                 break;
         }
     }else if(transfer_active == 0 && prev_transfer != 255){
         switch (prev_transfer)
         {
             case 0: // get_status
-                //*printf("PREV_TRANSFER: %d\t", prev_transfer);
+                //*printerr("PREV_TRANSFER: %d\t", prev_transfer);
                 break;
             case 1: // get config
-                //*printf("GET_CONFIG: %x\t", transfer_buffer[0]);
+                //*printerr("GET_CONFIG: %x\t", transfer_buffer[0]);
                 break;
             case 2: // set config
-                //*printf("PREV_TRANSFER: %d\t", prev_transfer);
+                //*printerr("PREV_TRANSFER: %d\t", prev_transfer);
                 break;
             case 3: // get report, hdi specific
                 buf_key_data_check(11);
@@ -370,40 +372,41 @@ static void usb_interrupt_handler(void){
                 config_desc_len = config_desc->wTotalLength;
                 config_val = config_desc->bConfigurationValue;
                 interface_num = config_desc->bNumInterfaces;
-                //*printf("CONFIG DESC LENGLTH: %x, DESCRPTR_TYPE: %x, TOTAL_LEN: %x, NUM_INTRFCS: %x, CONFIG_VAL: %x,"
+                //*printerr("CONFIG DESC LENGLTH: %x, DESCRPTR_TYPE: %x, TOTAL_LEN: %x, NUM_INTRFCS: %x, CONFIG_VAL: %x,"
                 //" ICONFIG: %x, ATTRBTS: %x, MAX_POWER: %x\t",
                 //config_desc->bLength, config_desc->bDescriptorType, config_desc->wTotalLength, config_desc->bNumInterfaces,
                 //config_desc->bConfigurationValue, config_desc->iConfiguration, config_desc->bmAttributes, config_desc->bMaxPower);
                 break;
             case 5: // get protocol, hdi specific
-                //*printf("GET_PROTOCOL: %x\t", transfer_buffer[0]);
+                //*printerr("GET_PROTOCOL: %x\t", transfer_buffer[0]);
                 break;
             case 6: // set protocol, hdi specific
-                //*printf("PREV_TRANSFER: %d\t", prev_transfer);
+                //*printerr("PREV_TRANSFER: %d\t", prev_transfer);
                 break;
             case 7: //get device descriptor
                 dev_desc = (struct usb_device_descriptor*)(&transfer_buffer[0]);
-                //*printf("DEV DESCRPTR, LEN: %d\tCONF_NUM: %d\tBCD_USB: %x\t", 
+                //*printerr("DEV DESCRPTR, LEN: %d\tCONF_NUM: %d\tBCD_USB: %x\t", 
                 //dev_desc->bLength, dev_desc->bNumConfigurations, dev_desc->bcdUSB);
                 break;
             default:
-                printf("ERR: UNEXPECTED VAL %d PREV_TRANSFER.\t", prev_transfer);
+                printerr("ERR: UNEXPECTED VAL %d PREV_TRANSFER.\t", prev_transfer);
                 break;
         }
         prev_transfer = 255;
     }else{
-        printf("ERR: UNEXPECTED LOGIC.\t");
+        //*printerr("ERR: UNEXPECTED LOGIC.\t");
     }
 
-    ENABLE_INTERRUPTS();
+    //ENABLE_INTERRUPTS();
 }
 
 static void usb_interrupt_clearer(void){
-    //*printf("USB CLEARER\tPORT STAT:%x\tCORE INTR:%x\t",regs->host_port_ctrlstatus,
+    //*printerr("USB CLEARER\tPORT STAT:%x\tCORE INTR:%x\t",regs->host_port_ctrlstatus,
     //*regs->core_interrupts.val);
+    udelay(500);
     
     if (regs->core_interrupts.port_intr){
-        //*printf("PORT INTR IN\t");
+        //*printerr("PORT INTR IN\t");
         /* Clear the interrupt(s), which are "write-clear", by writing the Host
          * Port Control and Status register back to itself.  But as a special
          * case, 'enabled' must be written as 0; otherwise the port will
@@ -425,7 +428,7 @@ static void usb_interrupt_clearer(void){
     }
 
     host_channel_int = regs->host_channels[0].interrupts;
-    //*printf("CHNL:%x\t", host_channel_int.val);
+    //*printerr("CHNL:%x\t", host_channel_int.val);
     if(regs->core_interrupts.host_channel_intr){
         /* Clear pending interrupts.  */
         regs->host_channels[0].interrupt_mask.val = 0;
@@ -455,7 +458,7 @@ static void dwc_setup_interrupts(void){
 }
 
 void usb_init(void){
-    DISABLE_INTERRUPTS();
+    //DISABLE_INTERRUPTS();
     if(!ON_EMU)
         bcm2835_setpower(POWER_USB, 1);
     dwc_soft_reset();
@@ -464,13 +467,13 @@ void usb_init(void){
     dwc_setup_interrupts();
     mutex_init(&input_lock);
     ilock_active = 1;
-    ENABLE_INTERRUPTS();
+    //ENABLE_INTERRUPTS();
 }
 
 int usb_poll(uint8_t request_type){
     int ret_val = -1;
     if (can_poll){
-        //*printf("INPOL\t");
+        //*printerr("INPOL\t");
         prev_transfer = request_type;
         can_poll = 0;
         control_phase = 0;
@@ -528,7 +531,7 @@ int usb_poll(uint8_t request_type){
                 setup_data.wLength = sizeof(struct usb_device_descriptor);
                 break;
             default:
-                printf("ERR: UNEXPECTED VAL %d for REQUEST_TYPE.\t", request_type);
+                printerr("ERR: UNEXPECTED VAL %d for REQUEST_TYPE.\t", request_type);
                 break;
         }
 
@@ -547,17 +550,17 @@ static inline void poll_wait(uint32_t request_type, uint32_t milisecs){
 }
 
 void keyboard_enum(void){
-    printf("\n--- GET DEV DESCRPTR ---\n");
+    //printerr("\n--- GET DEV DESCRPTR ---\n");
     poll_wait(7, 200);
     bzero(&transfer_buffer[0], 512);
 
-    printf("\n--- GET CFG DESCRPTR 0 ---\n");
+    //printerr("\n--- GET CFG DESCRPTR 0 ---\n");
     poll_wait(4, 200);
 
     udelay(2*SEC);
     struct usb_interface_descriptor* uid = NULL;
 
-    printf("\n--- GET CFG DESCRPTR 0 ---\n");
+    //printerr("\n--- GET CFG DESCRPTR 0 ---\n");
     poll_wait(4, 200);
     uint32_t offset = sizeof(struct usb_configuration_descriptor);
     uint8_t exit = 0;
@@ -565,8 +568,8 @@ void keyboard_enum(void){
     udelay(2*SEC);
     for(uint32_t i = 0; i < interface_num; ++i){
         uid = (struct usb_interface_descriptor*)(&transfer_buffer[offset]);
-        //*printf("\n--- INTERFACE %d ---\n", i);
-        //*printf("INTERFACE DESCRPTR, LEN: %x, DSCRPTR_TYPE: %x, INTRFC_NUM: %x,"
+        //*printerr("\n--- INTERFACE %d ---\n", i);
+        //*printerr("INTERFACE DESCRPTR, LEN: %x, DSCRPTR_TYPE: %x, INTRFC_NUM: %x,"
         //"ALTERNATE_STTNG: %x, NUM_ENDPOINTS: %x, INTRFC_CLASS: %x,"
         //"INTRFC_SUBCLSS: %X, INTRFC_PRTCL: %x, INTRFC: %x",
         //uid->bLength, uid->bDescriptorType, uid->bInterfaceNumber,
@@ -577,22 +580,22 @@ void keyboard_enum(void){
         offset += sizeof(struct usb_interface_descriptor);
 
         struct hid_descriptor* hd = (struct hid_descriptor*)(&transfer_buffer[offset]);
-        //*printf("\n--- INTERFACE %d HID DESCRIPTOR ---\n",i);
-        //*printf("HID DESCRIPTOR, LEN: %x, DESCRPTR_TYPE: %x, bCD_HID: %x, bCNTRY_CODE: %x,"
+        //*printerr("\n--- INTERFACE %d HID DESCRIPTOR ---\n",i);
+        //*printerr("HID DESCRIPTOR, LEN: %x, DESCRPTR_TYPE: %x, bCD_HID: %x, bCNTRY_CODE: %x,"
         //" NUM_DESCRPTR: %x, DESCRPTR_TYPE_R: %x, DESCRPTR_LEN: %x", hd->bLength, hd->bDescriptorType,
         //hd->bcdHID, hd->bCountryCode, hd->bNumDescriptors, hd->bDescriptorTypeR, hd->wDescriptorLength);
 
         offset += sizeof(struct hid_descriptor);
         for(uint32_t j = 0; j < epn; ++j){
             struct usb_endpoint_descriptor* ued = (struct usb_endpoint_descriptor*)(&transfer_buffer[offset]);
-            //*printf("\n--- INTERFACE %d ENPOINT %d ---\n", i, j);
-            //*printf("EPOINT DESCRPTR, LEN: %x, DESCRPTR_TYPE: %x, EPOINT_ADRS: %x, "
+            //*printerr("\n--- INTERFACE %d ENPOINT %d ---\n", i, j);
+            //*printerr("EPOINT DESCRPTR, LEN: %x, DESCRPTR_TYPE: %x, EPOINT_ADRS: %x, "
             //"ATTRBTS: %x, MAX_PKT_SIZE: %x, bINTRVL: %x", ued->bLength, ued->bDescriptorType,
             //ued->bEndpointAddress, ued->bmAttributes, ued->wMaxPacketSize, ued->bInterval);
             
             if(((ued->bmAttributes & USB_TRANSFER_TYPE_INTERRUPT) == USB_TRANSFER_TYPE_INTERRUPT)
             && ((ued->bEndpointAddress >> 7) == USB_DIRECTION_IN)){
-                printf("...ENTERED...\t");
+                printerr("...DONE.\n");
                 endpoint_address = ued->bEndpointAddress;
                 endpoint_interval = ued->bInterval;
                 interface_index = cur_interface;
@@ -606,7 +609,7 @@ void keyboard_enum(void){
     }
 
     if(exit == 0){
-        printf("\nERROR: INTERRUPT IN ENDPOINT HASN'T BEEN FOUND.\n");
+        printerr("\nERROR: INTERRUPT IN ENDPOINT HASN'T BEEN FOUND.\n");
     }
 
     // Set config to config_val
@@ -623,7 +626,7 @@ void key_poll(uint8_t may_skip){
     for(uint32_t i = 0; i < 8; ++i)
         transfer_buffer[i] = 0;
     transfer_active = 1;
-    //*printf("KEYPOLL\t");
+    //printerr("KEYPOLL\t");
     union dwc_host_channel_characteristics char_reg = regs->host_channels[0].characteristics;
     dmb();
     union dwc_host_channel_transfer transfer_reg = regs->host_channels[0].transfer;
@@ -650,7 +653,7 @@ void key_poll(uint8_t may_skip){
 
     char_reg.max_packet_size = 8;
     char_reg.endpoint_number = endpoint_address & 0x0f;
-    //*printf("EPADRESS: %x, EDPNUM:%x\t",endpoint_address, char_reg.endpoint_number);
+    //*printerr("EPADRESS: %x, EDPNUM:%x\t",endpoint_address, char_reg.endpoint_number);
     char_reg.low_speed = dev_speed_low;
     char_reg.endpoint_type = USB_TRANSFER_TYPE_INTERRUPT;
     char_reg.packets_per_frame = 1;
@@ -673,12 +676,12 @@ void key_poll(uint8_t may_skip){
 }
 
 void get_line(uint8_t* buf, uint32_t len){
-    printf("GETLINE\t");
+    //*printerr("GETLINE\t");
     enter_pressed = 0;
     cursor = 0;
     bzero(line_buffer, 256);
     while(!enter_pressed){
-        printf("GLOOP\t");
+        //*printerr("GLOOP\t");
         key_poll(1);
         udelay(endpoint_interval*MILI_SEC);
     }

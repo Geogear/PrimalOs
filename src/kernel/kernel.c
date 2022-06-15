@@ -38,24 +38,25 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
     mem_init((atag_t *)atags);
     if(!ON_EMU)  
         gpu_init();
-    printf("INITIALIZING INTERRUPTS...");
+    printerr("INITIALIZING INTERRUPTS...");
     interrupts_init();
-    printf("DONE\n");
-    printf("INITIALIZING TIMER...");
+    printerr("DONE\n");
+    printerr("INITIALIZING TIMER...");
     timer_init();
-    printf("DONE\n");
-    printf("INITIALIZING USB..");
+    printerr("DONE\n");
+    printerr("INITIALIZING USB..");
     usb_init();
-    printf("DONE\n");
+    printerr("DONE\n");
+    printerr("KEYBOARD ENUMARATION");
     keyboard_enum();
-    printf("INITIALIZING SCHEDULER...");
+    printerr("INITIALIZING SCHEDULER...");
     process_init();
-    printf("DONE\n");
+    printerr("DONE\n");
 
     //printf("INITIALIZING SD HOST CONTROLLER...");
     //sd_card_init();
     //printf("DONE\n");
-    printf("WELCOME TO PRIMAL OS!\n");
+    printerr("WELCOME TO PRIMAL OS!\n");
 
     char* thread_1 = "KBOARD_ENUM";
     char* thread_2 = "THREAD_2";

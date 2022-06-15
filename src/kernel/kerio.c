@@ -45,8 +45,7 @@ void gets(char * buf, int buflen) {
 }
 
 void printf(const char * fmt, ...) {
-    //if(ilock_active)
-        //mutex_lock(&input_lock);
+    mutex_lock(&input_lock);
     va_list args;
     va_start(args, fmt);
 
@@ -70,8 +69,33 @@ void printf(const char * fmt, ...) {
     }
 
     va_end(args);
-    //if(ilock_active)
-        //mutex_unlock(&input_lock);
+    mutex_unlock(&input_lock);
+}
+
+void printerr(const char * fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+
+    for (; *fmt != '\0'; fmt++) {
+        if (*fmt == '%') {
+            switch (*(++fmt)) {
+                case '%':
+                    putc('%');
+                    break;
+                case 'd':
+                    puts(itoa(va_arg(args, int), 10));
+                    break;
+                case 'x':
+                    puts(itoa(va_arg(args, int), 16));
+                    break;
+                case 's':
+                    puts(va_arg(args, char *));
+                    break;
+            }
+        } else putc(*fmt);
+    }
+
+    va_end(args);
 }
 
 void getline(uint8_t* buf, uint32_t len){

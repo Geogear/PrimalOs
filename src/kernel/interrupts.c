@@ -1,5 +1,6 @@
 #include <kernel/interrupts.h>
 #include <kernel/kerio.h>
+#include <kernel/timer.h>
 #include <common/stdlib.h>
 #include <kernel/uart.h>
 
@@ -26,22 +27,25 @@ void interrupts_init(void) {
  * this function is going to be called by the processor.  Needs to check pending interrupts and execute handlers if one is registered
  */
 void irq_handler(void) {
+    DISABLE_INTERRUPTS();
     int j;
     for (j = 0; j < NUM_IRQS; j++) {
         if (IRQ_IS_PENDING(interrupt_regs, j) && j != SYSTEM_TIMER_1){
-            printf("PENDING IRQ %d\t",j);
+            //*printf("PENDING IRQ %d\t",j);
+            udelay(500);
         }
     } 
 	for (j = 0; j < NUM_IRQS; j++) {
         // If the interrupt is pending and there is a handler, run the handler
         if (IRQ_IS_PENDING(interrupt_regs, j)  && (handlers[j] != 0)) {
 			clearers[j]();
-			ENABLE_INTERRUPTS();
+			//ENABLE_INTERRUPTS();
 			handlers[j]();
-			DISABLE_INTERRUPTS();
+			//DISABLE_INTERRUPTS();
 			return;
         }
     }
+    ENABLE_INTERRUPTS();
 }
 
 void __attribute__ ((interrupt ("ABORT"))) reset_handler(void) {
@@ -74,9 +78,9 @@ void __attribute__ ((interrupt ("FIQ"))) fast_irq_handler(void) {
 
 void register_irq_handler(irq_number_t irq_num, interrupt_handler_f handler, interrupt_clearer_f clearer) {
     uint32_t irq_pos;
-    printf("IRQ REGISTER %d\n",irq_num);
+    //*printf("IRQ REGISTER %d\n",irq_num);
     if (IRQ_IS_BASIC(irq_num)) {
-        printf("IRQ BASIC\n");
+        //*printf("IRQ BASIC\n");
         irq_pos = irq_num - 64;
         handlers[irq_num] = handler;
 		clearers[irq_num] = clearer;
@@ -89,7 +93,7 @@ void register_irq_handler(irq_number_t irq_num, interrupt_handler_f handler, int
         interrupt_regs->irq_gpu_enable2 |= (1 << irq_pos);
     }
     else if (IRQ_IS_GPU1(irq_num)) {
-        printf("IRQ GPU1\n");
+        //*printf("IRQ GPU1\n");
         irq_pos = irq_num;
         handlers[irq_num] = handler;
 		clearers[irq_num] = clearer;
