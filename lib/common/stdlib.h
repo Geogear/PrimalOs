@@ -23,4 +23,10 @@ void bzero(void* dest, int bytes);
 char* itoa(int i, int base);
 int atoi(char * num);
 
+void* malloc(uint32_t bytes);
+void free(void* ptr);
+
+void srand(uint32_t seed);
+uint32_t rand(void);
+
 #endif

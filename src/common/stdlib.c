@@ -1,4 +1,7 @@
 #include <common/stdlib.h>
+#include <kernel/mem.h>
+
+static uint32_t state = 777;
 
 __inline__ uint32_t div(uint32_t dividend, uint32_t divisor) {
     // Use long division, but in binary.
@@ -168,4 +171,21 @@ int atoi(char * num) {
     }
 
     return res;
+}
+
+void* malloc(uint32_t bytes){
+    return mem_alloc(bytes, get_heap_head());
+}
+
+void free(void* ptr){
+    return mem_free(ptr);
+}
+
+void srand(uint32_t seed){
+    state = seed;
+}
+
+uint32_t rand(void){
+   state = state * 1664525 + 1013904223;
+   return state;
 }
