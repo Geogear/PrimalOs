@@ -5,12 +5,12 @@
 #include <kernel/framebuffer.h>
 #include <kernel/gpu.h>
 
-#define INPUT_BUFFER_SIZE 512
+//#define INPUT_BUFFER_SIZE 512
 
 static usb_mdio_control_t* keyboard_control;
 static usb_mdio_data_t* keyboard_data;
 static usb_vbus_t* keyboard_vbus;
-static unsigned char input_buffer[INPUT_BUFFER_SIZE] = {};
+//static unsigned char input_buffer[INPUT_BUFFER_SIZE] = {};
 static uint16_t cursor_pos = 0;
 static uint8_t tab_length = 4;
 static uint8_t capslock_on = 1;
@@ -93,31 +93,4 @@ static void keyboard_irq_handler(void){
             }
         }
     }
-}
-
-void keyboard_init(void){
-    keyboard_control = (usb_mdio_control_t*) (USB_BASE + USB_MDIO_CONTL_OFFSET);
-    keyboard_data = (usb_mdio_data_t*) (USB_BASE + USB_MDIO_DATA_OFFSET);
-    keyboard_vbus = (usb_vbus_t*) (USB_BASE + USB_VBUS_OFFSET);
-    keyboard_data->mdio_data = -1; dmb(); keyboard_control->mdc_ratio = 1; dmb(); keyboard_data->mdio_data = 0;
-    keyboard_data->mdio_data = -1; dmb(); keyboard_control->freerun = 1; dmb(); keyboard_data->mdio_data = 0;
-    dmb(); keyboard_vbus->vbus_irq_en = 1;
-
-    //register_irq_handler(USB_CONTROLER, keyboard_irq_handler, keyboard_irq_clearer);
-}
-
-void dump_keyboard_info(int o){
-    if(o){
-        printf("K_data:%x\t",keyboard_data->mdio_data);
-        keyboard_data->mdio_data = -1; dmb();
-        printf("KC_mdi:%x\t",keyboard_control->mdi); dmb();
-        keyboard_data->mdio_data = 0;
-        return;
-    }
-    keyboard_data->mdio_data = -1; dmb();
-    printf("KC_mdi:%x\tKC_mdcr:%x\tKC_fr:%x\tKC_bbe:%x\tKC_bbmc:%x\tKC_bbmo:%x\tKC_mb:%x\t",
-    keyboard_control->mdi, keyboard_control->mdc_ratio, keyboard_control->freerun,
-    keyboard_control->bb_enbl, keyboard_control->bb_mdc, keyboard_control->bb_mdo,
-    keyboard_control->mdio_busy); dmb();
-    keyboard_data->mdio_data = 0;
 }
