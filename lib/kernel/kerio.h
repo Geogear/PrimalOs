@@ -12,4 +12,6 @@ void gets(char * buf, int buflen);
 
 void printf(const char * fmt, ...);
 
+void getline(char* buf, uint32_t len);
+
 #endif

@@ -4,6 +4,9 @@
 #include <kernel/kerio.h>
 #include <kernel/timer.h>
 #include <kernel/usb_std_defs.h>
+#include <kernel/keyboard.h>
+#include <kernel/scancodes.h>
+#include <kernel/mutex.h>
 #include <common/stdlib.h>
 
 /** Round a number up to the next multiple of the word size.  */
@@ -30,6 +33,8 @@ static volatile struct dwc_regs * const regs = (void*)USB_BASE;
 static struct usb_control_setup_data setup_data = {};
 static uint8_t key_press_data[8] = {};
 static uint8_t transfer_buffer[512] = {};
+static uint8_t line_buffer[256] = {};
+static uint8_t cursor = 0;
 
 static enum device_status dev_stat = DEVICE_STATUS_COUNT;
 static uint8_t config_val = 0;
@@ -47,17 +52,36 @@ static uint32_t config_desc_len = sizeof(struct usb_configuration_descriptor);
 
 static uint8_t prev_transfer = 255;
 static uint8_t can_poll = 0;
+static uint8_t enter_pressed = 0;
 
 static void buf_key_data_check(uint32_t x){
-    uint32_t total = 0;
+    /*uint32_t total = 0;
     for(uint32_t i = 0; i < 8; ++i)
         total += transfer_buffer[i];
     
     if(total > 0){
         for(uint32_t i = 0; i < 8; ++i)
-            printf("KD%d: %d\t", i, transfer_buffer[i]);
+            printf("KD%d: %d\t", i, transfer_buffer[i]);  
     }else
-        printf("%d",x);
+        printf("%d",x);*/
+    // TODO convert scancodes to ascii values and store in the line buf
+    // TODO convert each key until the first non-printable character
+    uint8_t input = 0;
+    struct key_press_report* krp = (struct key_press_report*)(&transfer_buffer[0]);
+    for(uint32_t i = 0; i < 7; ++i){
+        uint8_t ascii = get_ascii_from_sc(krp->key_press_data[i]);
+        if(in_printable_range(ascii)){
+            input = 1;
+            // Make sure line buffer doesn't overflow
+            if(cursor < 256)
+                line_buffer[cursor++] = ascii;
+            if(ascii == LF)
+                enter_pressed = 1;
+            // Print the pressed character
+            putc(ascii);
+        }else
+            break;
+    }
 }
 
 static uint32_t round_up_divide(uint32_t dividend, uint32_t divider){
@@ -431,7 +455,7 @@ void usb_init(void){
     dwc_soft_reset();
     dwc_setup_dma_mode();
     dwc_power_on_host_port();
-    dwc_setup_interrupts();  
+    dwc_setup_interrupts();
     ENABLE_INTERRUPTS();
 }
 
@@ -465,7 +489,7 @@ int usb_poll(uint8_t request_type){
                 setup_data.bRequest = 0x01;
                 setup_data.wValue = 0x0100;
                 setup_data.wIndex = 0x0;
-                setup_data.wLength = sizeof(key_press_data);
+                setup_data.wLength = sizeof(struct key_press_report);
                 break;
             case 4: // get config desc
                 setup_data.bmRequestType = USB_BMREQUESTTYPE_DIR_IN;
@@ -638,4 +662,27 @@ void key_poll(uint8_t may_skip){
     ++interrupt_phase;
     char_reg.channel_enable = 1;
     regs->host_channels[0].characteristics = char_reg;
+}
+
+void get_line(char* buf, uint32_t len){
+    enter_pressed = 0;
+    cursor = 0;
+    bzero(line_buffer, 256);
+    while(!enter_pressed){
+        key_poll();
+        udelay(endpoint_interval*MILI_SEC);
+    }
+
+    // From linebuffer to caller buffer
+    uint32_t i = 0;
+    for(; i < cursor; ++i){
+        if(i < len){
+            buf[i] = line_buffer[i];
+        }else{
+            --i;
+            break;
+        }
+    }
+    // Set '\0'
+    buf[i] = 0;   
 }

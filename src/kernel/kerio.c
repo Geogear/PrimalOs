@@ -2,6 +2,7 @@
 #include <kernel/kernel.h>
 #include <kernel/kerio.h>
 #include <kernel/gpu.h>
+#include <kernel/keyboard.h>
 #include <common/stdlib.h>
 #include <stdarg.h>
 
@@ -66,4 +67,11 @@ void printf(const char * fmt, ...) {
     }
 
     va_end(args);
+}
+
+void getline(char* buf, uint32_t len){
+    //TODO
+    //mutexlock input lock
+    get_line(buf, len);
+    //mutex unlock input lock
 }

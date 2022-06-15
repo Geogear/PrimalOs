@@ -71,4 +71,6 @@ void keyboard_enum(void);
 
 void key_poll(uint8_t may_skip);
 
+void get_line(char* buf, uint32_t len);
+
 #endif
