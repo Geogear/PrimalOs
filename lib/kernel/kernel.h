@@ -1,7 +1,7 @@
 #ifndef KERNEL_H
 #define KERNEL_H
 
-#define ON_EMU 0
+#define ON_EMU 1
 
 #include <kernel/list.h>
 

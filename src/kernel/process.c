@@ -63,6 +63,7 @@ static void wake_up(uint32_t waker_id){
             sems_pending = sems_pending ^ (0x1 << waker_id);
             break;
         }
+        blocked_thread = blocked_thread->nextpcb;
     }
 }
 

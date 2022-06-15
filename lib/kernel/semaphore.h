@@ -3,6 +3,7 @@
 #ifndef SEM_H
 #define SEM_H
 
+/* If you change this you must also change the working details of the semaphore. */
 #define TOTAL_SEMS 32
 
 typedef struct{
