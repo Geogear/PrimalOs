@@ -45,6 +45,8 @@ void gets(char * buf, int buflen) {
 }
 
 void printf(const char * fmt, ...) {
+    //if(ilock_active)
+        //mutex_lock(&input_lock);
     va_list args;
     va_start(args, fmt);
 
@@ -68,11 +70,12 @@ void printf(const char * fmt, ...) {
     }
 
     va_end(args);
+    //if(ilock_active)
+        //mutex_unlock(&input_lock);
 }
 
-void getline(char* buf, uint32_t len){
-    //TODO
-    //mutexlock input lock
+void getline(uint8_t* buf, uint32_t len){
+    //mutex_lock(&input_lock);
     get_line(buf, len);
-    //mutex unlock input lock
+    //mutex_unlock(&input_lock);
 }

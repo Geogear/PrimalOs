@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <kernel/kernel.h>
 #include <kernel/peripheral.h>
+#include <kernel/mutex.h>
 
 #define USB_BASE (USB_OFFSET + PERIPHERAL_BASE)
 #define USB_MDIO_CONTL_OFFSET 0x80
@@ -18,6 +19,8 @@
 #define HID_BOOT_PROTOCOL           0     /* Section 7.2.5 */
 
 #define KEYBOARD_INTERFACE_NUMBER 1
+
+extern uint8_t ilock_active;
 
 typedef struct{
     uint32_t mdi:16; //[15:0]
@@ -71,6 +74,6 @@ void keyboard_enum(void);
 
 void key_poll(uint8_t may_skip);
 
-void get_line(char* buf, uint32_t len);
+void get_line(uint8_t* buf, uint32_t len);
 
 #endif
