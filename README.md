@@ -10,7 +10,7 @@ Also, this is a **Work In Progress**, so there can be minor and major changes th
 # BUILDING
 Build directory gives you everything you need, you can just use a text editor and build from the terminal, but first you need to have arm cross compiler since most probably your computer runs on a processor that's based on the x86_64 architecture, you can download one for your system from [here](https://developer.arm.com/downloads/-/gnu-rm). Makefile assumes path to the compiler is in your environment variables.
 
-Another important thing is, if you are building for the qemu-arm emulator, you have to set the **ON_EMU** macro in **kernel.h** to one, or zero if you are going to run on a raspberry pi zero.
+Another important thing is, if you are building for the qemu-arm emulator, you have to set the **ON_EMU** definition in **kernel.h** to one, or zero if you are going to run on a raspberry pi zero. If you've taken a build before and you've changed the **ON_EMU** or any other definition in that matter, you have to do **make clean** and then build, since old object files will still include the old definition value, if you just do **make**.
 
 Makefile will generate two files, one is **primalos.elf**, which is needed to run on the emulator, other is **kernel.img** which is needed to run on the hardware.
 
