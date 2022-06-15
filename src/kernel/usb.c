@@ -54,18 +54,16 @@ static uint8_t can_poll = 0;
 static uint8_t enter_pressed = 0;
 
 extern uint8_t ilock_active = 0;
+extern mutex_t input_lock = {};
 
 static void buf_key_data_check(uint32_t x){
     printf("BKD_CHECK: %x\t",x);
-    /*uint32_t total = 0;
-    for(uint32_t i = 0; i < 8; ++i)
-        total += transfer_buffer[i];
     
-    if(total > 0){
-        for(uint32_t i = 0; i < 8; ++i)
-            printf("KD%d: %d\t", i, transfer_buffer[i]);  
-    }else
-        printf("%d",x);*/
+    for(uint32_t i = 0; i < 8; ++i){
+        if(transfer_buffer[i] != 0){
+            printf("KD%d: %x\t", i, transfer_buffer[i]);  
+        }
+    }
     // convert scancodes to ascii values and store in the line buf
     // convert each key until the first non-printable character or data end
     //uint8_t input = 0;
@@ -77,6 +75,7 @@ static void buf_key_data_check(uint32_t x){
     struct key_press_report* krp = (struct key_press_report*)(&transfer_buffer[0]);
     for(uint32_t i = 0; i < 7; ++i){
         uint8_t ascii = get_ascii_from_sc(krp->key_press_data[i]);
+        printf("ASC%d: %d\t", i, ascii);
         if(in_printable_range(ascii)){
             //input = 1;
             // Make sure line buffer doesn't overflow
@@ -463,7 +462,7 @@ void usb_init(void){
     dwc_setup_dma_mode();
     dwc_power_on_host_port();
     dwc_setup_interrupts();
-    //mutex_init(&input_lock);
+    mutex_init(&input_lock);
     ilock_active = 1;
     ENABLE_INTERRUPTS();
 }

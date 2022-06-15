@@ -75,7 +75,7 @@ void printf(const char * fmt, ...) {
 }
 
 void getline(uint8_t* buf, uint32_t len){
-    //mutex_lock(&input_lock);
+    mutex_lock(&input_lock);
     get_line(buf, len);
-    //mutex_unlock(&input_lock);
+    mutex_unlock(&input_lock);
 }

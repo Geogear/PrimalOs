@@ -21,6 +21,7 @@
 #define KEYBOARD_INTERFACE_NUMBER 1
 
 extern uint8_t ilock_active;
+extern mutex_t input_lock;
 
 typedef struct{
     uint32_t mdi:16; //[15:0]

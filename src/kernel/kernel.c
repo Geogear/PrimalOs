@@ -47,6 +47,7 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
     printf("INITIALIZING USB..");
     usb_init();
     printf("DONE\n");
+    keyboard_enum();
     printf("INITIALIZING SCHEDULER...");
     process_init();
     printf("DONE\n");
@@ -55,7 +56,6 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
     //sd_card_init();
     //printf("DONE\n");
     printf("WELCOME TO PRIMAL OS!\n");
-    //keyboard_enum();
 
     char* thread_1 = "KBOARD_ENUM";
     char* thread_2 = "THREAD_2";
@@ -64,8 +64,8 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
     sem_init(&input_request, 1);
     sem_init(&input_data, 1);
     //create_kernel_thread(keyboard_enumarator, thread_1, strlen(thread_1));
-    //create_kernel_thread(test, thread_2, strlen(thread_2));
-    create_kernel_thread(test2, thread_2, strlen(thread_2));
+    create_kernel_thread(test, thread_2, strlen(thread_2));
+    //create_kernel_thread(test2, thread_2, strlen(thread_2));
     
     //create_kernel_thread(test, thread_2, strlen(thread_2));
     //for(uint32_t i = 0; i < SYS_USER_THREAD_COUNT; ++i)
@@ -83,7 +83,7 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
 void keyboard_enumarator(void){
     printf("KEYENUM\t");
     keyboard_enum();
-    //mutex_unlock(&input_lock);
+    mutex_unlock(&input_lock);
 }
 
 void test(void) {
@@ -111,11 +111,11 @@ void synch1(void){
     }    
 }
 
-/*void synch2(void){
+void synch2(void){
     mutex_lock(&input_lock);
     printf("SYNCH2 IR_SIG\t");
     sem_signal(&input_request);
     printf("SYNCH2 ID_W8\t");
     sem_wait(&input_data);
     mutex_unlock(&input_lock);
-}*/
+}
