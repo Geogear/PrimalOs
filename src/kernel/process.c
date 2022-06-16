@@ -83,7 +83,7 @@ static void check_blockeds(void){
 
 void schedule(void) {
     DISABLE_INTERRUPTS();
-    printerr("SCHEDULER\t");
+    //printerr("SCHEDULER\t");
     // First check for pending signals on the blocked queue.
     check_blockeds();
 
@@ -133,17 +133,17 @@ void process_init(void) {
 
 static void reap(void) {
     DISABLE_INTERRUPTS();
-    printf("REAP_ENTER\t");
+    //printf("REAP_ENTER\t");
     process_control_block_t * new_thread, * old_thread;
 
     // If nothing on the run queue, there is nothing to do now. just loop
     while (size_pcb_list(&run_queue) == 0);
 
     // Get the next thread to run. For now we are using round-robin
-    printf("REAP_POP\t");
+    //printf("REAP_POP\t");
     new_thread = pop_pcb_list(&run_queue);
-    if(new_thread == NULL)
-        printf("REAP_NULL\t");
+    //if(new_thread == NULL)
+        //printf("REAP_NULL\t");
     old_thread = current_process;
     current_process = new_thread;
 

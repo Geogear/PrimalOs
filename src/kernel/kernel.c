@@ -67,7 +67,8 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
     }
     create_kernel_thread(synch1, "SYNCH1", strlen("SYNCH1"));
     create_kernel_thread(synch2, "SYNCH2", strlen("SYNCH2"));
-    create_kernel_thread(empty, "EMPTRY", strlen("EMPTY"));
+    // IMPORTANT: We always need a thread running for scheduling.
+    create_kernel_thread(empty, "EMPTY", strlen("EMPTY"));
 
     char* shell_text = "PRIME-SHELL >>";
     uint8_t shell_buf[128];

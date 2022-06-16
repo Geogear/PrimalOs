@@ -149,28 +149,32 @@ char * itoa(int num, int base) {
     return intbuf;
 }
 
-int atoi(char * num) {
-    int res = 0, power = 0, digit, i;
-    char * start = num;
-
-    // Find the end
-    while (*num >= '0' && *num <= '9') {
-        num++;     
+int atoi(char* str) {
+    // Initialize result
+    int res = 0;
+ 
+    // Initialize sign as positive
+    int sign = 1;
+ 
+    // Initialize index of first digit
+    int i = 0;
+ 
+    // If number is negative,
+    // then update sign
+    if (str[0] == '-') {
+        sign = -1;
+ 
+        // Also update index of first digit
+        i++;
     }
-
-    num--;
-
-    while (num != start) {
-        digit = *num - '0'; 
-        for (i = 0; i < power; i++) {
-            digit *= 10;
-        }
-        res += digit;
-        power++;
-        num--;
-    }
-
-    return res;
+ 
+    // Iterate through all digits
+    // and update the result
+    for (; str[i] != '\0'; ++i)
+        res = res * 10 + str[i] - '0';
+ 
+    // Return result with sign
+    return sign * res;
 }
 
 void* malloc(uint32_t bytes){

@@ -36,7 +36,7 @@ void master_mind(void){
     getline((uint8_t*)number_buf, 11);
     entered_number = atoi(number_buf);
     srand(get_time());
-    decided_number = rand() % entered_number;
+    decided_number = divmod(rand(), entered_number).mod;
     printf("\n%sDECIDED NUM: %d", thread_text, decided_number);
 
     do{
@@ -45,8 +45,6 @@ void master_mind(void){
         printf("\n%sGUESS A NUMBER:",thread_text);
         getline((uint8_t*)number_buf, 11);
         entered_number = atoi(number_buf);
-        printf("\n%sENTERED NUM: %d", thread_text, entered_number);
-        printf("\n%sENTERED STR: %s", thread_text, number_buf);
 
         if(entered_number > decided_number)
             printf("\n%sGO LOWER!",thread_text);
@@ -61,8 +59,10 @@ void master_mind(void){
 
 void metric(void){
     char* thread_text = "METRIC >>";
-    printf("\n%sSYSTEM TIME: %d && TOTAL TIME: %d", 
-    thread_text, system_time, get_time());
+    uint32_t total_time = get_time();
+    uint32_t percentage = 100 / (total_time / system_time);
+    printf("\n%sSYSTEM TIME: %d && TOTAL TIME: %d -> %d PERCENT SYSTEM TIME.\n", 
+    thread_text, system_time, total_time, percentage);
 }
 
 /* Addresses of the functions. */
