@@ -18,12 +18,8 @@
 #include <common/string.h>
 #include <common/system_user_api.h>
 
-void test(void);
-void test2(void);
-void keyboard_enumarator(void);
 void synch1(void);
 void synch2(void);
-uint32_t k = 0, t = 0;
 
 sem_t input_request;
 sem_t input_data;
@@ -56,50 +52,41 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
     //printf("INITIALIZING SD HOST CONTROLLER...");
     //sd_card_init();
     //printf("DONE\n");
-    printerr("WELCOME TO PRIMAL OS!\n");
 
-    char* thread_1 = "KBOARD_ENUM";
-    char* thread_2 = "THREAD_2";
-    char* user_thread = "USER_THREAD";
+    printerr("WELCOME TO PRIMAL OS!\n");
 
     sem_init(&input_request, 1);
     sem_init(&input_data, 1);
-    //create_kernel_thread(keyboard_enumarator, thread_1, strlen(thread_1));
-    create_kernel_thread(test, thread_2, strlen(thread_2));
-    //create_kernel_thread(test2, thread_2, strlen(thread_2));
     
-    //create_kernel_thread(test, thread_2, strlen(thread_2));
-    //for(uint32_t i = 0; i < SYS_USER_THREAD_COUNT; ++i)
-        //create_kernel_thread(sys_user_threads[i], user_thread, strlen(user_thread));
-    //create_kernel_thread(synch1, thread_2, strlen(thread_2));
-    //create_kernel_thread(synch2, thread_2, strlen(thread_2));
-
-    while (1) {      
-        printf("MAIN\t");
-        udelay(5*SEC);
-        //key_poll(1);
+    // Runs the threads at the start that are set in the 
+    // sut_run_at_start, array.
+    for(uint32_t i = 0; i < SYS_USER_THREAD_COUNT; ++i){
+        if(sut_run_at_start[i])
+            create_kernel_thread(sys_user_threads[i], sut_names[i], strlen(sut_names[i]));
     }
-}
 
-void keyboard_enumarator(void){
-    printf("KEYENUM\t");
-    keyboard_enum();
-    mutex_unlock(&input_lock);
-}
+    char* shell_text = "PRIME-SHELL >>";
+    uint8_t shell_buf[128];
+    uint32_t match = 0;
+    while (1) {
+        printf("\n%s", shell_text);
+        getline(shell_buf, 128);
 
-void test(void) {
-    uint8_t buf[32] = {};
-    printf("ENTER TEST LINE: ");
-    getline(buf, 32);
-    printf("TEST LINE: %s", buf);
-}
-
-void test2(void) {
-    uint8_t i = 0;
-    while(i < 10){
-        ++i;
-        printf("TEST %d\t",i);
-        udelay(3*SEC);
+        if(shell_buf[0] == '\0')
+            udelay(2*SEC);
+        else{
+            match = 0;
+            for(uint32_t i = 0; i < SYS_USER_THREAD_COUNT; ++i){
+                if(strequal(sut_names[i], shell_buf)){
+                    match = i;
+                    break;
+                }
+            }
+            if(!match)
+                printf("\n%sGIVEN NAME IS INVALID!",shell_text);
+            else
+                create_kernel_thread(sys_user_threads[match], sut_names[match], strlen(sut_names[match]));
+        }
     }
 }
 
@@ -113,10 +100,8 @@ void synch1(void){
 }
 
 void synch2(void){
-    mutex_lock(&input_lock);
     printf("SYNCH2 IR_SIG\t");
     sem_signal(&input_request);
     printf("SYNCH2 ID_W8\t");
     sem_wait(&input_data);
-    mutex_unlock(&input_lock);
 }

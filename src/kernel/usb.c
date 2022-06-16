@@ -686,9 +686,10 @@ void get_line(uint8_t* buf, uint32_t len){
         udelay(endpoint_interval*MILI_SEC);
     }
 
-    // From linebuffer to caller buffer
+    // From linebuffer to caller buffer, cursor-1 because don't put the 
+    // new line character in the buf.
     uint32_t i = 0;
-    for(; i < cursor; ++i){
+    for(; i < cursor-1; ++i){
         if(i < len){
             buf[i] = line_buffer[i];
         }else{

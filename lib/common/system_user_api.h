@@ -30,7 +30,11 @@ void busy_wait(uint32_t usecs);
 So you should set the count accordingly and fill the array.
 This is just declaration of the array, for the definition find the system_user_threads.c 
 You can also implement your threads there. */
-#define SYS_USER_THREAD_COUNT 2
+#define SYS_USER_THREAD_COUNT 4
 extern thread_function_f sys_user_threads[SYS_USER_THREAD_COUNT];
+
+extern char sut_names[SYS_USER_THREAD_COUNT][20];
+
+extern uint8_t sut_run_at_start[SYS_USER_THREAD_COUNT];
 
 #endif
