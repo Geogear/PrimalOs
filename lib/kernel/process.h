@@ -6,6 +6,7 @@
 #define PROCESS_H
 
 extern uint32_t quanta;
+extern uint32_t system_time;
 
 typedef void (*thread_function_f)(void);
 
@@ -44,5 +45,6 @@ void process_init(void);
 
 void create_kernel_thread(thread_function_f thread_func, char * name, int name_len);
 void schedule(void);
+void yield(void);
 
 #endif

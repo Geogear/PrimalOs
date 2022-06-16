@@ -29,6 +29,7 @@ process_control_block_t * current_process;
 
 static uint32_t sems_taken = 0;
 static uint32_t sems_pending = 0;
+extern uint32_t system_time = 0;
 
 static void block(uint32_t blocker_id){
     // Set the blocker id
@@ -48,7 +49,7 @@ static void block(uint32_t blocker_id){
 
     // Context Switch
     context_switch(old_thread, new_thread);
-    ENABLE_INTERRUPTS();       
+    ENABLE_INTERRUPTS();
 }
 
 static void wake_up(uint32_t waker_id){
@@ -82,6 +83,7 @@ static void check_blockeds(void){
 
 void schedule(void) {
     DISABLE_INTERRUPTS();
+    printerr("SCHEDULER\t");
     // First check for pending signals on the blocked queue.
     check_blockeds();
 
@@ -131,13 +133,17 @@ void process_init(void) {
 
 static void reap(void) {
     DISABLE_INTERRUPTS();
+    printf("REAP_ENTER\t");
     process_control_block_t * new_thread, * old_thread;
 
     // If nothing on the run queue, there is nothing to do now. just loop
     while (size_pcb_list(&run_queue) == 0);
 
     // Get the next thread to run. For now we are using round-robin
+    printf("REAP_POP\t");
     new_thread = pop_pcb_list(&run_queue);
+    if(new_thread == NULL)
+        printf("REAP_NULL\t");
     old_thread = current_process;
     current_process = new_thread;
 
@@ -152,8 +158,10 @@ static void reap(void) {
     mem_free(old_thread);
 
     // Context Switch
+    //timer_set(quanta);
+    //ENABLE_INTERRUPTS();
     context_switch(old_thread, new_thread);
-    // TODO enable interrupts?
+    printf("REAP_EXIT\t");
 }
 
 //TODO return thread pid?
@@ -272,4 +280,8 @@ void sem_signal(sem_t* sem){
 
 void sem_destroy(sem_t* sem){
     sems_taken = sems_taken ^ (0x1 << sem->id);
+}
+
+void yield(void){
+    schedule();
 }

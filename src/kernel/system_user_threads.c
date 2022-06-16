@@ -1,3 +1,4 @@
+#include <kernel/timer.h>
 #include <common/system_user_api.h>
 
 /* Define your functions. */
@@ -18,7 +19,7 @@ void thread1(void) {
 
 void thread2(void) {
     int i = 0;
-    while (i < 10) {
+    while (i < 20) {
         printf("THREAD 2\t");
         ++i;
         udelay(1000000);
@@ -36,11 +37,16 @@ void master_mind(void){
     entered_number = atoi(number_buf);
     srand(get_time());
     decided_number = rand() % entered_number;
+    printf("\n%sDECIDED NUM: %d", thread_text, decided_number);
 
     do{
+        for(uint32_t i = 0; i<11; ++i)
+            number_buf[i] = '\0';
         printf("\n%sGUESS A NUMBER:",thread_text);
         getline((uint8_t*)number_buf, 11);
         entered_number = atoi(number_buf);
+        printf("\n%sENTERED NUM: %d", thread_text, entered_number);
+        printf("\n%sENTERED STR: %s", thread_text, number_buf);
 
         if(entered_number > decided_number)
             printf("\n%sGO LOWER!",thread_text);
@@ -54,7 +60,9 @@ void master_mind(void){
 }
 
 void metric(void){
-
+    char* thread_text = "METRIC >>";
+    printf("\n%sSYSTEM TIME: %d && TOTAL TIME: %d", 
+    thread_text, system_time, get_time());
 }
 
 /* Addresses of the functions. */
@@ -68,10 +76,10 @@ extern thread_function_f sys_user_threads[SYS_USER_THREAD_COUNT] =
 
 /* Names of the functions are used to run them from the shell. */
 extern char sut_names[SYS_USER_THREAD_COUNT][20] = {
-    "thread1",
-    "thread2",
-    "mastermind",
-    "metric"
+    "THREAD1",
+    "THREAD2",
+    "MASTERMIND",
+    "METRIC"
 };
 
 /* Set as 1, to run at the start. */

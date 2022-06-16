@@ -1,6 +1,7 @@
 #include <kernel/interrupts.h>
 #include <kernel/kerio.h>
 #include <kernel/timer.h>
+#include <kernel/process.h>
 #include <common/stdlib.h>
 #include <kernel/uart.h>
 
@@ -28,6 +29,7 @@ void interrupts_init(void) {
  */
 void irq_handler(void) {
     DISABLE_INTERRUPTS();
+    uint32_t last_time = timer_get();
     int j;
     for (j = 0; j < NUM_IRQS; j++) {
         if (IRQ_IS_PENDING(interrupt_regs, j) && j != SYSTEM_TIMER_1){
@@ -45,6 +47,7 @@ void irq_handler(void) {
 			return;
         }
     }
+    system_time += timer_get() - last_time;
     ENABLE_INTERRUPTS();
 }
 

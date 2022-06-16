@@ -55,10 +55,11 @@ static uint8_t enter_pressed = 0;
 
 extern uint8_t ilock_active = 0;
 extern mutex_t input_lock = {};
+static uint32_t gl_count = 0;
 
 static void buf_key_data_check(uint32_t x){
     //*printerr("BKD_CHECK: %x\t",x);
-    udelay(500);
+    udelay(50);
     
     for(uint32_t i = 0; i < 8; ++i){
         if(transfer_buffer[i] != 0){
@@ -349,7 +350,7 @@ static void usb_interrupt_handler(void){
                 }
                 break;
             default:
-                //*printerr("DEFAULT\t");
+                printerr("DEFAULT\t");
                 break;
         }
     }else if(transfer_active == 0 && prev_transfer != 255){
@@ -394,7 +395,7 @@ static void usb_interrupt_handler(void){
         }
         prev_transfer = 255;
     }else{
-        //*printerr("ERR: UNEXPECTED LOGIC.\t");
+        printerr("ERR: UNEXPECTED LOGIC.\t");
     }
 
     //ENABLE_INTERRUPTS();
@@ -621,6 +622,9 @@ void keyboard_enum(void){
 }
 
 void key_poll(uint8_t may_skip){
+    //if(gl_count % 50 == 0)
+        //printerr("IPA:%d && TA:%d\t",
+        //interrupt_poll_active, transfer_active);
     if((interrupt_poll_active == 0 || transfer_active) && may_skip)
         return;
     for(uint32_t i = 0; i < 8; ++i)
@@ -681,7 +685,7 @@ void get_line(uint8_t* buf, uint32_t len){
     cursor = 0;
     bzero(line_buffer, 256);
     while(!enter_pressed){
-        //*printerr("GLOOP\t");
+        gl_count++;
         key_poll(1);
         udelay(endpoint_interval*MILI_SEC);
     }
@@ -689,14 +693,18 @@ void get_line(uint8_t* buf, uint32_t len){
     // From linebuffer to caller buffer, cursor-1 because don't put the 
     // new line character in the buf.
     uint32_t i = 0;
-    for(; i < cursor-1; ++i){
-        if(i < len){
-            buf[i] = line_buffer[i];
-        }else{
-            --i;
-            break;
+    if(cursor != 0){
+        for(; i < cursor-1; ++i){
+            if(i < len){
+                buf[i] = line_buffer[i];
+            }else{
+                if(i != 0)
+                    --i;
+                break;
+            }
         }
     }
     // Set '\0'
-    buf[i] = 0;   
+    buf[i] = 0;
+    printerr("G_L\t");
 }
